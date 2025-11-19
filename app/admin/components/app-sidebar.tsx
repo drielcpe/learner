@@ -35,8 +35,8 @@ const data = {
       icon: FlagIcon,
     },
     {
-      title: "Personal Information",
-      url: "/personal-info",
+      title: "Student Management",
+      url: "/student-management",
       icon: UserIcon,
     }
   ],

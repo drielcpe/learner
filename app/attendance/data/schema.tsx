@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 // Update to support present/absent/late with proper typing
-export const attendanceStatusSchema = z.enum(["present", "absent", "late"])
+export const attendanceStatusSchema = z.enum(["present", "absent", "late","excused"])
 export type AttendanceStatus = z.infer<typeof attendanceStatusSchema>
 
 // Helper type for backward compatibility

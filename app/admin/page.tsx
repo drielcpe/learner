@@ -86,7 +86,7 @@ export default function AdminDashboard() {
               </Link>
             </Button>
             <Button asChild variant="outline" className="w-full justify-start gap-2">
-              <Link href="/students">
+              <Link href="/student-management">
                 <Users className="h-4 w-4" />
                 Student Directory
               </Link>
@@ -97,12 +97,7 @@ export default function AdminDashboard() {
                 Payment Verification
               </Link>
             </Button>
-            <Button asChild variant="outline" className="w-full justify-start gap-2">
-              <Link href="/reports">
-                <BarChart3 className="h-4 w-4" />
-                Generate Reports
-              </Link>
-            </Button>
+        
           </CardContent>
         </Card>
 

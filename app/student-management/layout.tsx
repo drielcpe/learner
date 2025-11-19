@@ -4,9 +4,8 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from  "@/app/student/components/side-header"
-
+import { AppSidebar } from "../admin/components/app-sidebar"
+import { SiteHeader } from "../admin/components/side-header"
 export default async function DashboardLayout({
   children,
 }: {
