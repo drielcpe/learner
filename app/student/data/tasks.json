@@ -1,0 +1,35 @@
+[
+  {
+    "id": "1",
+    "student_name": "Juan Dela Cruz",
+    "attendance": {
+      "1": {
+        "period1": false,
+        "period2": false,
+        "period3": false,
+        "period4": false,
+        "period5": false
+      },
+      "2": {
+        "period1": true,
+        "period2": false,
+        "period3": true,
+        "period4": false,
+        "period5": true
+      }
+    }
+  },
+  {
+    "id": 2,
+    "student_name": "Maria Santos",
+    "attendance": {
+      "1": {
+        "period1": false,
+        "period2": true,
+        "period3": false,
+        "period4": true,
+        "period5": false
+      }
+    }
+  }
+]
