@@ -25,14 +25,21 @@ import { DataTableToolbar } from "../../../attendance/components/data-table-tool
 import type { Payment, PaymentStatus, PaymentMethod } from "../data/schema"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Eye, QrCode } from "lucide-react"
+import { Eye, QrCode, CreditCard, Wallet, Banknote, ChevronDown } from "lucide-react"
 import { useRouter } from "next/navigation"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // Status badge configuration
 const statusConfig = {
   pending: { color: "bg-yellow-100 text-yellow-800 border-yellow-200", label: "Pending" },
   processing: { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Processing" },
   completed: { color: "bg-green-100 text-green-800 border-green-200", label: "Completed" },
+  paid: { color: "bg-green-100 text-green-800 border-green-200", label: "Paid" },
   failed: { color: "bg-red-100 text-red-800 border-red-200", label: "Failed" },
   cancelled: { color: "bg-gray-100 text-gray-800 border-gray-200", label: "Cancelled" },
 } as const
@@ -42,6 +49,13 @@ const methodConfig = {
   gcash: { color: "bg-purple-100 text-purple-800 border-purple-200", label: "GCash" },
   cash: { color: "bg-green-100 text-green-800 border-green-200", label: "Cash" },
   bank_transfer: { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Bank Transfer" },
+} as const
+
+// Payment options configuration
+const paymentOptions = {
+  gcash: { icon: Wallet, label: "Pay with GCash", description: "Scan QR code to pay" },
+  cash: { icon: Banknote, label: "Pay with Cash", description: "Pay at school cashier" },
+  bank_transfer: { icon: CreditCard, label: "Bank Transfer", description: "Transfer to bank account" },
 } as const
 
 const columns: ColumnDef<Payment>[] = [
@@ -93,7 +107,11 @@ const columns: ColumnDef<Payment>[] = [
     header: "Status",
     cell: ({ row }) => {
       const status = row.original.status as PaymentStatus
-      const config = statusConfig[status]
+      // Safe access to status config with fallback
+      const config = statusConfig[status] || { 
+        color: "bg-gray-100 text-gray-800 border-gray-200", 
+        label: status.charAt(0).toUpperCase() + status.slice(1) 
+      }
       return (
         <Badge variant="outline" className={config.color}>
           {config.label}
@@ -130,23 +148,69 @@ const columns: ColumnDef<Payment>[] = [
         router.push(`/payments/view/${payment.id}`)
       }
 
-      const handleQRCode = () => {
-        router.push(`/payments/students/qr/${payment.id}`)
-      }
+    const handlePaymentMethod = (method: PaymentMethod) => {
+      // Navigate to the same payment page with method as query parameter
+      router.push(`/payments/students/pay/${payment.id}?method=${method}`)
+    }
+
+      // Only show payment options if status is pending
+      const showPaymentOptions = payment.status === "pending"
 
       return (
         <div className="flex gap-2">
+          {/* View button - always visible */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8 gap-1"
+            onClick={handleView}
+          >
+            <Eye className="h-3 w-3" />
+            View
+          </Button>
         
-          {payment.payment_method === "gcash" && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-8 gap-1"
-              onClick={handleQRCode}
-            >
-              <QrCode className="h-3 w-3" />
-              QR
-            </Button>
+          {/* Payment Options Dropdown - only show for pending payments */}
+          {showPaymentOptions && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="default" size="sm" className="h-8 gap-1">
+                  Pay Now
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => handlePaymentMethod("gcash")}>
+                  <div className="flex items-center gap-2 w-full">
+                    <Wallet className="h-4 w-4 text-purple-600" />
+                    <div className="flex-1">
+                      <div className="font-medium">Pay with GCash</div>
+                      <div className="text-xs text-muted-foreground">Scan QR code to pay</div>
+                    </div>
+                    <QrCode className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => handlePaymentMethod("cash")}>
+                  <div className="flex items-center gap-2 w-full">
+                    <Banknote className="h-4 w-4 text-green-600" />
+                    <div className="flex-1">
+                      <div className="font-medium">Pay with Cash</div>
+                      <div className="text-xs text-muted-foreground">Pay at school cashier</div>
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => handlePaymentMethod("bank_transfer")}>
+                  <div className="flex items-center gap-2 w-full">
+                    <CreditCard className="h-4 w-4 text-blue-600" />
+                    <div className="flex-1">
+                      <div className="font-medium">Bank Transfer</div>
+                      <div className="text-xs text-muted-foreground">Transfer to bank account</div>
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       )

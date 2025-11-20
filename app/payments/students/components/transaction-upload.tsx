@@ -1,217 +1,293 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Upload, Camera, X, CheckCircle } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
+import * as React from "react"
+import {
+  ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
 
-interface TransactionUploadProps {
-  paymentId: string
+import {
+  Table as ShadTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+import { DataTablePagination } from "../../../attendance/components/data-table-pagination"
+import { DataTableToolbar } from "../../../attendance/components/data-table-toolbar"
+import type { Payment, PaymentStatus, PaymentMethod } from "../data/schema"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Eye, QrCode, CreditCard, Wallet, Banknote, ChevronDown } from "lucide-react"
+import { useRouter } from "next/navigation"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
+// Status badge configuration
+const statusConfig = {
+  pending: { color: "bg-yellow-100 text-yellow-800 border-yellow-200", label: "Pending" },
+  processing: { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Processing" },
+  completed: { color: "bg-green-100 text-green-800 border-green-200", label: "Completed" },
+  paid: { color: "bg-green-100 text-green-800 border-green-200", label: "Paid" },
+  failed: { color: "bg-red-100 text-red-800 border-red-200", label: "Failed" },
+  cancelled: { color: "bg-gray-100 text-gray-800 border-gray-200", label: "Cancelled" },
+} as const
+
+// Method badge configuration
+const methodConfig = {
+  gcash: { color: "bg-purple-100 text-purple-800 border-purple-200", label: "GCash" },
+  cash: { color: "bg-green-100 text-green-800 border-green-200", label: "Cash" },
+  bank_transfer: { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Bank Transfer" },
+} as const
+
+// Payment options configuration
+const paymentOptions = {
+  gcash: { icon: Wallet, label: "Pay with GCash", description: "Scan QR code to pay" },
+  cash: { icon: Banknote, label: "Pay with Cash", description: "Pay at school cashier" },
+  bank_transfer: { icon: CreditCard, label: "Bank Transfer", description: "Transfer to bank account" },
+} as const
+
+const columns: ColumnDef<Payment>[] = [
+  {
+    accessorKey: "student_id",
+    header: "Student ID",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">{row.original.student_id}</span>
+    ),
+  },
+  {
+    accessorKey: "student_name",
+    header: "Student Name",
+    cell: ({ row }) => (
+      <div>
+        <div className="font-medium">{row.original.student_name}</div>
+        <div className="text-xs text-muted-foreground">
+          {row.original.grade} - {row.original.section}
+        </div>
+      </div>
+    ),
+  },
+  {
+    accessorKey: "adviser",
+    header: "Adviser",
+  },
+  {
+    accessorKey: "amount",
+    header: "Amount",
+    cell: ({ row }) => (
+      <div className="font-medium">₱{row.original.amount.toLocaleString()}</div>
+    ),
+  },
+  {
+    accessorKey: "payment_method",
+    header: "Method",
+    cell: ({ row }) => {
+      const method = row.original.payment_method as PaymentMethod
+      const config = methodConfig[method]
+      return (
+        <Badge variant="outline" className={config.color}>
+          {config.label}
+        </Badge>
+      )
+    },
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => {
+      const status = row.original.status as PaymentStatus
+      // Safe access to status config with fallback
+      const config = statusConfig[status] || { 
+        color: "bg-gray-100 text-gray-800 border-gray-200", 
+        label: status.charAt(0).toUpperCase() + status.slice(1) 
+      }
+      return (
+        <Badge variant="outline" className={config.color}>
+          {config.label}
+        </Badge>
+      )
+    },
+  },
+  {
+    accessorKey: "reference_number",
+    header: "Reference",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">
+        {row.original.reference_number || "-"}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "due_date",
+    header: "Due Date",
+    cell: ({ row }) => (
+      <div className="text-sm">
+        {row.original.due_date ? new Date(row.original.due_date).toLocaleDateString() : "-"}
+      </div>
+    ),
+  },
+  {
+    id: "actions",
+    header: "Actions",
+    cell: ({ row }) => {
+      const router = useRouter()
+      const payment = row.original
+
+      const handleView = () => {
+        router.push(`/payments/view/${payment.id}`)
+      }
+
+      const handlePaymentMethod = (method: PaymentMethod) => {
+        // Handle payment method selection
+        switch (method) {
+          case "gcash":
+            router.push(`/payments/students/qr/${payment.id}`)
+            break
+          case "cash":
+            // For cash payments, maybe show instructions or mark as paid
+            alert(`Please pay ₱${payment.amount.toLocaleString()} at the school cashier.`)
+            // You can add API call here to update payment status
+            break
+          case "bank_transfer":
+            // For bank transfer, show bank details
+            alert(`Please transfer ₱${payment.amount.toLocaleString()} to:\n\nBank: School Bank\nAccount: 1234-5678-9012\nReference: ${payment.student_id}`)
+            break
+        }
+      }
+
+      // Only show payment options if status is pending
+      const showPaymentOptions = payment.status === "pending"
+
+      return (
+        <div className="flex gap-2">
+          {/* View button - always visible */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-8 gap-1"
+            onClick={handleView}
+          >
+            <Eye className="h-3 w-3" />
+            View
+          </Button>
+        
+          {/* Payment Options Dropdown - only show for pending payments */}
+          {showPaymentOptions && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="default" size="sm" className="h-8 gap-1">
+                  Pay Now
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => handlePaymentMethod("gcash")}>
+                  <div className="flex items-center gap-2 w-full">
+                    <Wallet className="h-4 w-4 text-purple-600" />
+                    <div className="flex-1">
+                      <div className="font-medium">Pay with GCash</div>
+                      <div className="text-xs text-muted-foreground">Scan QR code to pay</div>
+                    </div>
+                    <QrCode className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => handlePaymentMethod("cash")}>
+                  <div className="flex items-center gap-2 w-full">
+                    <Banknote className="h-4 w-4 text-green-600" />
+                    <div className="flex-1">
+                      <div className="font-medium">Pay with Cash</div>
+                      <div className="text-xs text-muted-foreground">Pay at school cashier</div>
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => handlePaymentMethod("bank_transfer")}>
+                  <div className="flex items-center gap-2 w-full">
+                    <CreditCard className="h-4 w-4 text-blue-600" />
+                    <div className="flex-1">
+                      <div className="font-medium">Bank Transfer</div>
+                      <div className="text-xs text-muted-foreground">Transfer to bank account</div>
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      )
+    },
+  },
+]
+
+interface PaymentsTableProps {
+  data: Payment[]
 }
 
-export function TransactionUpload({ paymentId }: TransactionUploadProps) {
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      // Check if file is an image
-      if (!file.type.startsWith('image/')) {
-        alert('Please select an image file (JPEG, PNG, etc.)')
-        return
-      }
-
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('File size must be less than 5MB')
-        return
-      }
-
-      setSelectedFile(file)
-      const url = URL.createObjectURL(file)
-      setPreviewUrl(url)
-    }
-  }
-
-  const handleUpload = async () => {
-    if (!selectedFile) return
-
-    setIsUploading(true)
-    setUploadProgress(0)
-
-    // Simulate upload process
-    for (let i = 0; i <= 100; i += 10) {
-      setUploadProgress(i)
-      await new Promise(resolve => setTimeout(resolve, 200))
-    }
-
-    // Here you would typically upload to your backend
-    // For now, we'll just simulate success
-    setTimeout(() => {
-      setIsUploading(false)
-      setUploadProgress(100)
-      alert('Transaction proof uploaded successfully! Your payment is being verified.')
-      
-      // Reset after successful upload
-      setTimeout(() => {
-        setSelectedFile(null)
-        setPreviewUrl(null)
-        setUploadProgress(0)
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-        }
-      }, 2000)
-    }, 1000)
-  }
-
-  const handleRemoveFile = () => {
-    setSelectedFile(null)
-    setPreviewUrl(null)
-    setUploadProgress(0)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }
-
-  const handleTakePhoto = () => {
-    // This would open camera in a real app
-    alert('Camera functionality would open here. For now, please upload a file.')
-  }
+export function PaymentsTable({ data }: PaymentsTableProps) {
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
 
   return (
-    <div className="space-y-4">
-      {/* Upload Area */}
-      {!selectedFile ? (
-        <Card className="border-2 border-dashed border-gray-300">
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-sm font-medium text-gray-900 mb-2">
-                Upload Transaction Proof
-              </p>
-              <p className="text-xs text-gray-500 mb-4">
-                Upload a screenshot of your GCash transaction
-              </p>
-              
-              <div className="flex gap-2 justify-center">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="gap-2"
-                >
-                  <Upload className="h-4 w-4" />
-                  Choose File
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleTakePhoto}
-                  className="gap-2"
-                >
-                  <Camera className="h-4 w-4" />
-                  Take Photo
-                </Button>
-              </div>
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              
-              <p className="text-xs text-gray-400 mt-3">
-                Supported formats: JPEG, PNG, GIF • Max 5MB
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        /* Preview & Upload */
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              {/* File Preview */}
-              <div className="text-center">
-                <p className="text-sm font-medium mb-2">Selected File</p>
-                <div className="border rounded-lg p-3 bg-gray-50">
-                  <img 
-                    src={previewUrl || ''} 
-                    alt="Transaction proof preview" 
-                    className="w-full h-40 object-contain rounded"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  {selectedFile.name} • {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
-              </div>
+    <div className="flex flex-col gap-4">
+      <DataTableToolbar table={table} />
+      
+      <div className="overflow-x-auto rounded-md border">
+        <ShadTable>
+          <TableHeader>
+            {table.getHeaderGroups().map((hg) => (
+              <TableRow key={hg.id}>
+                {hg.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
 
-              {/* Upload Progress */}
-              {isUploading && (
-                <div className="space-y-2">
-                  <Progress value={uploadProgress} className="w-full" />
-                  <p className="text-xs text-center text-gray-500">
-                    Uploading... {uploadProgress}%
-                  </p>
-                </div>
-              )}
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  No payments found.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </ShadTable>
+      </div>
 
-              {/* Actions */}
-              <div className="flex gap-2 justify-center">
-                {!isUploading && (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleRemoveFile}
-                      className="gap-2"
-                    >
-                      <X className="h-4 w-4" />
-                      Remove
-                    </Button>
-                    <Button 
-                      size="sm"
-                      onClick={handleUpload}
-                      className="gap-2"
-                    >
-                      <Upload className="h-4 w-4" />
-                      Upload Proof
-                    </Button>
-                  </>
-                )}
-                
-                {uploadProgress === 100 && (
-                  <div className="flex items-center gap-2 text-green-600">
-                    <CheckCircle className="h-5 w-5" />
-                    <span className="font-medium">Uploaded Successfully!</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Upload Tips */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="pt-4">
-          <p className="text-sm font-medium text-blue-800 mb-2">📸 Upload Tips:</p>
-          <ul className="text-xs text-blue-700 space-y-1">
-            <li>• Make sure the screenshot shows the transaction amount clearly</li>
-            <li>• Include the reference number in the screenshot</li>
-            <li>• Ensure the date and time are visible</li>
-            <li>• Check that the image is clear and readable</li>
-          </ul>
-        </CardContent>
-      </Card>
+      <DataTablePagination table={table} />
     </div>
   )
 }

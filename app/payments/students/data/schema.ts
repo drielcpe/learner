@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-export const paymentStatusSchema = z.enum(["pending", "processing", "completed", "failed", "cancelled"])
+export const paymentStatusSchema = z.enum(["pending", "processing", "completed", "failed", "cancelled","paid"])
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>
 
 export const paymentMethodSchema = z.enum(["gcash", "cash", "bank_transfer"])

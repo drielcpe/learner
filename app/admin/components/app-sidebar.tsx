@@ -26,12 +26,17 @@ const data = {
     },
     {
       title: "Payment",
-      url: "/payments/admin",
+      url: "/admin/payments",
       icon: NotebookIcon,
     },
     {
       title: "Attendance Console",
       url: "/admin/attendance",
+      icon: FlagIcon,
+    },
+    {
+      title: "Payment Method",
+      url: "/admin/payment-methods",
       icon: FlagIcon,
     },
     {

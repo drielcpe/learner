@@ -3,9 +3,9 @@
 import { ColumnDef } from "@tanstack/react-table"
 import type { Attendance, DayKey, PeriodKey, AttendanceStatus } from "../../attendance/data/schema"
 import { PERIOD_KEYS } from "../../attendance/data/schema"
-import { Check, X, Clock, MoreHorizontal } from "lucide-react"
+import { Check, X, Clock, MoreHorizontal,Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, } from "@/components/ui/dropdown-menu"
 
 const statusConfig = {
   present: { 
@@ -28,6 +28,13 @@ const statusConfig = {
     bg: "bg-yellow-50", 
     border: "border-yellow-200", 
     label: "Late" 
+  },
+   excused: { 
+    icon: Shield, 
+    color: "text-blue-600", 
+    bg: "bg-blue-50", 
+    border: "border-blue-200", 
+    label: "Excused" 
   }
 } as const
 
@@ -123,6 +130,11 @@ export const buildSecretaryColumns = (day: DayKey, isEditable: boolean): ColumnD
                 <X className="h-4 w-4 text-red-600 mr-2" />
                 Absent
               </DropdownMenuItem>
+
+                      <DropdownMenuItem onClick={() => handleStatusChange("excused")}>
+                <Shield className="h-4 w-4 text-blue-600 mr-2" />
+                Excused
+              </DropdownMenuItem> 
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

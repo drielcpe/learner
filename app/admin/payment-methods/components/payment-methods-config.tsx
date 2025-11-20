@@ -232,18 +232,7 @@ export function PaymentMethodsConfig() {
         </Button>
       </div>
 
-      {/* Demo Notice */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="pt-6">
-          <div className="text-center">
-            <p className="text-blue-800 font-medium">Demo Mode</p>
-            <p className="text-blue-600 text-sm">
-              Using dummy data. Changes will be reset on page refresh.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
+   
       {/* Payment Methods Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {methods.map((method) => (

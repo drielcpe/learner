@@ -8,7 +8,7 @@
   "adviser": "Ms. Johnson",
   "amount": 1500,
   "payment_method": "gcash",
-  "status": "pending",
+  "status": "paid",
   "reference_number": "GC001234",
   "qr_code": "/images/qr-codes/1.jpg",
   "transaction_proof": null,

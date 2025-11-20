@@ -5,257 +5,1120 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Download, RefreshCw, Eye, CheckCircle, XCircle, Clock } from "lucide-react"
+import { Search, Filter, Download, RefreshCw, Eye, CheckCircle, XCircle, Clock, Plus, User, ChevronDown } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { Payment } from "./types"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { ArrowLeft, UserCog } from "lucide-react"
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+// Types
+type PaymentStatus = "pending" | "processing" | "completed" | "paid" | "failed" | "cancelled" | "reviewed"
+type PaymentMethod = "gcash" | "cash" | "bank_transfer"
+
+interface Student {
+  id: number
+  student_id: string
+  student_name: string
+  grade: string
+  section: string
+  adviser: string
+}
+
+interface PaymentMethodType {
+  id: number
+  method_code: PaymentMethod
+  method_name: string
+  description: string
+}
+
+interface Payment {
+  id: number
+  student_id: number
+  payment_method_id: number
+  amount: number
+  status: PaymentStatus
+  reference_number: string | null
+  description: string
+  due_date: string
+  created_at: string
+  updated_at: string
+  student: Student
+  payment_method: PaymentMethodType
+  grade?: string
+  section?: string
+  adviser?: string
+}
+
+// Dummy data with more students for better filtering
+const dummyStudents: Student[] = [
+  { id: 1, student_id: "2024-001", student_name: "John Doe", grade: "7", section: "A", adviser: "Ms. Smith" },
+  { id: 2, student_id: "2024-002", student_name: "Jane Smith", grade: "7", section: "A", adviser: "Ms. Smith" },
+  { id: 3, student_id: "2024-003", student_name: "Mike Johnson", grade: "7", section: "B", adviser: "Mr. Johnson" },
+  { id: 4, student_id: "2024-004", student_name: "Sarah Wilson", grade: "7", section: "B", adviser: "Mr. Johnson" },
+  { id: 5, student_id: "2024-005", student_name: "David Brown", grade: "8", section: "A", adviser: "Ms. Davis" },
+  { id: 6, student_id: "2024-006", student_name: "Emily Davis", grade: "8", section: "A", adviser: "Ms. Davis" },
+  { id: 7, student_id: "2024-007", student_name: "Chris Lee", grade: "8", section: "B", adviser: "Mr. Wilson" },
+  { id: 8, student_id: "2024-008", student_name: "Amanda Garcia", grade: "8", section: "B", adviser: "Mr. Wilson" },
+  { id: 9, student_id: "2024-009", student_name: "Michael Chen", grade: "9", section: "A", adviser: "Ms. Taylor" },
+  { id: 10, student_id: "2024-010", student_name: "Jessica Martinez", grade: "9", section: "A", adviser: "Ms. Taylor" },
+]
+
+const dummyPaymentMethods: PaymentMethodType[] = [
+  { id: 1, method_code: "gcash", method_name: "GCash", description: "Mobile wallet payment" },
+  { id: 2, method_code: "cash", method_name: "Cash", description: "Physical cash payment" },
+  { id: 3, method_code: "bank_transfer", method_name: "Bank Transfer", description: "Bank transfer payment" },
+]
+
+const dummyPayments: Payment[] = [
+  {
+    id: 1,
+    student_id: 1,
+    payment_method_id: 1,
+    amount: 1500,
+    status: "pending",
+    reference_number: "GCASH12345",
+    description: "Tuition Fee for January 2024",
+    due_date: "2024-02-15",
+    created_at: "2024-01-15T00:00:00Z",
+    updated_at: "2024-01-15T00:00:00Z",
+    student: dummyStudents[0],
+    payment_method: dummyPaymentMethods[0]
+  },
+  {
+    id: 2,
+    student_id: 2,
+    payment_method_id: 2,
+    amount: 1500,
+    status: "processing",
+    reference_number: null,
+    description: "Tuition Fee for January 2024",
+    due_date: "2024-02-15",
+    created_at: "2024-01-15T00:00:00Z",
+    updated_at: "2024-01-16T00:00:00Z",
+    student: dummyStudents[1],
+    payment_method: dummyPaymentMethods[1]
+  },
+  {
+    id: 3,
+    student_id: 3,
+    payment_method_id: 3,
+    amount: 2000,
+    status: "completed",
+    reference_number: "BANK67890",
+    description: "Tuition and Books Fee",
+    due_date: "2024-02-10",
+    created_at: "2024-01-10T00:00:00Z",
+    updated_at: "2024-01-12T00:00:00Z",
+    student: dummyStudents[2],
+    payment_method: dummyPaymentMethods[2]
+  },
+  {
+    id: 4,
+    student_id: 4,
+    payment_method_id: 1,
+    amount: 1500,
+    status: "failed",
+    reference_number: "GCASH54321",
+    description: "Tuition Fee for January 2024",
+    due_date: "2024-02-15",
+    created_at: "2024-01-14T00:00:00Z",
+    updated_at: "2024-01-16T00:00:00Z",
+    student: dummyStudents[3],
+    payment_method: dummyPaymentMethods[0]
+  }
+]
+
+// Status badge configuration
+const statusConfig = {
+  pending: { color: "bg-yellow-100 text-yellow-800 border-yellow-200", label: "Pending" },
+  processing: { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Processing" },
+  completed: { color: "bg-green-100 text-green-800 border-green-200", label: "Completed" },
+  paid: { color: "bg-green-100 text-green-800 border-green-200", label: "Paid" },
+  failed: { color: "bg-red-100 text-red-800 border-red-200", label: "Failed" },
+  cancelled: { color: "bg-gray-100 text-gray-800 border-gray-200", label: "Cancelled" },
+  reviewed: { color: "bg-purple-100 text-purple-800 border-purple-200", label: "Reviewed" },
+} as const
+
+// Method badge configuration
+const methodConfig = {
+  gcash: { color: "bg-purple-100 text-purple-800 border-purple-200", label: "GCash" },
+  cash: { color: "bg-green-100 text-green-800 border-green-200", label: "Cash" },
+  bank_transfer: { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Bank Transfer" },
+} as const
+
+// DataTablePagination Component
+function DataTablePagination({ table }: { table: any }) {
+  return (
+    <div className="flex items-center justify-between px-2">
+      <div className="flex-1 text-sm text-muted-foreground">
+        {table.getFilteredSelectedRowModel().rows.length} of{" "}
+        {table.getFilteredRowModel().rows.length} row(s) selected.
+      </div>
+      <div className="flex items-center space-x-6 lg:space-x-8">
+        <div className="flex items-center space-x-2">
+          <p className="text-sm font-medium">Rows per page</p>
+          <Select
+            value={`${table.getState().pagination.pageSize}`}
+            onValueChange={(value) => {
+              table.setPageSize(Number(value))
+            }}
+          >
+            <SelectTrigger className="h-8 w-[70px]">
+              <SelectValue placeholder={table.getState().pagination.pageSize} />
+            </SelectTrigger>
+            <SelectContent side="top">
+              {[10, 20, 30, 40, 50].map((pageSize) => (
+                <SelectItem key={pageSize} value={`${pageSize}`}>
+                  {pageSize}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+          Page {table.getState().pagination.pageIndex + 1} of{" "}
+          {table.getPageCount()}
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            className="hidden h-8 w-8 p-0 lg:flex"
+            onClick={() => table.setPageIndex(0)}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <span className="sr-only">Go to first page</span>
+            <ChevronDown className="h-4 w-4 rotate-90" />
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8 w-8 p-0"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <span className="sr-only">Go to previous page</span>
+            <ChevronDown className="h-4 w-4 rotate-90" />
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8 w-8 p-0"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            <span className="sr-only">Go to next page</span>
+            <ChevronDown className="h-4 w-4 -rotate-90" />
+          </Button>
+          <Button
+            variant="outline"
+            className="hidden h-8 w-8 p-0 lg:flex"
+            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+            disabled={!table.getCanNextPage()}
+          >
+            <span className="sr-only">Go to last page</span>
+            <ChevronDown className="h-4 w-4 -rotate-90" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// DataTableToolbar Component
+function DataTableToolbar({ table }: { table: any }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex flex-1 items-center space-x-2">
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search students, reference numbers..."
+            value={(table.getColumn("student_name")?.getFilterValue() as string) ?? ""}
+            onChange={(event) =>
+              table.getColumn("student_name")?.setFilterValue(event.target.value)
+            }
+            className="pl-8"
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+       
+        <Select
+          value={(table.getColumn("status")?.getFilterValue() as string) ?? "all"}
+          onValueChange={(value) => 
+            table.getColumn("status")?.setFilterValue(value === "all" ? "" : value)
+          }
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="reviewed">Reviewed</SelectItem>
+            <SelectItem value="processing">Processing</SelectItem>
+            <SelectItem value="paid">Paid</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={(table.getColumn("payment_method")?.getFilterValue() as string) ?? "all"}
+          onValueChange={(value) => 
+            table.getColumn("payment_method")?.setFilterValue(value === "all" ? "" : value)
+          }
+        >
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Method" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Methods</SelectItem>
+            {dummyPaymentMethods.map(method => (
+              <SelectItem key={method.id} value={method.method_code}>
+                {method.method_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  )
+}
+
+// PaymentsTable Component
+interface PaymentsTableProps {
+  data: Payment[]
+  onViewPayment: (payment: Payment) => void
+  onUpdatePaymentStatus: (paymentId: number, newStatus: PaymentStatus) => void
+  loading: boolean
+}
+
+function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: PaymentsTableProps) {
+  // Enhanced columns definition
+  const columns: ColumnDef<Payment>[] = [
+    {
+      accessorKey: "student_id",
+      header: "Student ID",
+      cell: ({ row }) => (
+        <span className="font-mono text-sm">{row.original.student.student_id}</span>
+      ),
+    },
+    {
+      accessorKey: "student_name",
+      header: "Student Name",
+      cell: ({ row }) => (
+        <div>
+          <div className="font-medium">{row.original.student.student_name}</div>
+          <div className="text-xs text-muted-foreground">
+            {row.original.student.grade} - {row.original.student.section}
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "adviser",
+      header: "Adviser",
+      cell: ({ row }) => row.original.student.adviser,
+    },
+    {
+      accessorKey: "amount",
+      header: "Amount",
+      cell: ({ row }) => (
+        <div className="font-medium">₱{row.original.amount.toLocaleString()}</div>
+      ),
+    },
+    {
+      accessorKey: "payment_method",
+      header: "Method",
+      cell: ({ row }) => {
+        const method = row.original.payment_method.method_code as PaymentMethod
+        const config = methodConfig[method]
+        return (
+          <Badge variant="outline" className={config.color}>
+            {config.label}
+          </Badge>
+        )
+      },
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.original.status
+        const config = statusConfig[status] || { 
+          color: "bg-gray-100 text-gray-800 border-gray-200", 
+          label: status.charAt(0).toUpperCase() + status.slice(1) 
+        }
+        return (
+          <Badge variant="outline" className={config.color}>
+            {config.label}
+          </Badge>
+        )
+      },
+    },
+    {
+      accessorKey: "reference_number",
+      header: "Reference",
+      cell: ({ row }) => (
+        <span className="font-mono text-sm">
+          {row.original.reference_number || "-"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "due_date",
+      header: "Due Date",
+      cell: ({ row }) => (
+        <div className="text-sm">
+          {row.original.due_date ? new Date(row.original.due_date).toLocaleDateString() : "-"}
+        </div>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const payment = row.original
+
+        const handleView = () => {
+          onViewPayment(payment)
+        }
+
+        const handleStatusUpdate = (newStatus: PaymentStatus) => {
+          onUpdatePaymentStatus(payment.id, newStatus)
+        }
+
+        // Show actions based on current status
+        const getAvailableActions = () => {
+          switch (payment.status) {
+            case 'pending':
+              return [
+                { label: "Mark as Reviewed", status: "reviewed" as PaymentStatus, variant: "default" as const },
+                { label: "Mark as Paid", status: "paid" as PaymentStatus, variant: "default" as const },
+                { label: "Reject", status: "failed" as PaymentStatus, variant: "destructive" as const },
+              ]
+            case 'reviewed':
+              return [
+                { label: "Mark as Paid", status: "paid" as PaymentStatus, variant: "default" as const },
+                { label: "Mark as Processing", status: "processing" as PaymentStatus, variant: "default" as const },
+                { label: "Reject", status: "failed" as PaymentStatus, variant: "destructive" as const },
+              ]
+            case 'processing':
+              return [
+                { label: "Mark as Paid", status: "paid" as PaymentStatus, variant: "default" as const },
+                { label: "Mark as Reviewed", status: "reviewed" as PaymentStatus, variant: "default" as const },
+                { label: "Reject", status: "failed" as PaymentStatus, variant: "destructive" as const },
+              ]
+            case 'paid':
+            case 'completed':
+            case 'failed':
+              return [
+                { label: "Mark as Reviewed", status: "reviewed" as PaymentStatus, variant: "default" as const },
+                { label: "Reset to Pending", status: "pending" as PaymentStatus, variant: "outline" as const },
+              ]
+            default:
+              return [
+                { label: "Mark as Reviewed", status: "reviewed" as PaymentStatus, variant: "default" as const },
+                { label: "Mark as Paid", status: "paid" as PaymentStatus, variant: "default" as const },
+                { label: "Reset to Pending", status: "pending" as PaymentStatus, variant: "outline" as const },
+              ]
+          }
+        }
+
+        const availableActions = getAvailableActions()
+
+        return (
+          <div className="flex gap-2">
+            {/* View button - always visible */}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-8 gap-1"
+              onClick={handleView}
+              disabled={loading}
+            >
+              <Eye className="h-3 w-3" />
+              View
+            </Button>
+          
+            {/* Adviser Actions Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="default" size="sm" className="h-8 gap-1" disabled={loading}>
+                  Actions
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {availableActions.map((action) => (
+                  <DropdownMenuItem 
+                    key={action.status}
+                    onClick={() => handleStatusUpdate(action.status)}
+                    className={action.variant === "destructive" ? "text-red-600 focus:text-red-600" : ""}
+                    disabled={loading}
+                  >
+                    {action.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )
+      },
+    },
+  ]
+
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+  })
+
+  return (
+    <div className="flex flex-col gap-4">
+      <DataTableToolbar table={table} />
+      
+      <div className="overflow-x-auto rounded-md border">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  No payments found.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <DataTablePagination table={table} />
+    </div>
+  )
+}
+
+// Main PaymentManagement Component
 export function PaymentManagement() {
-  const [payments, setPayments] = useState<Payment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [methodFilter, setMethodFilter] = useState<string>("all")
+  const [payments, setPayments] = useState<Payment[]>(dummyPayments)
+  const [students, setStudents] = useState<Student[]>(dummyStudents)
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodType[]>(dummyPaymentMethods)
+  const [loading, setLoading] = useState(false)
+  
+  // Modal states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
+
+  // New payment form state
+  const [newPayment, setNewPayment] = useState({
+    student_ids: [] as number[],
+    payment_method_id: "",
+    amount: "",
+    description: "",
+    due_date: ""
+  })
+
+  // Multi-select state
+  const [selectedStudents, setSelectedStudents] = useState<number[]>([])
+  const [selectedGrade, setSelectedGrade] = useState<string>("all")
+  const [selectedSection, setSelectedSection] = useState<string>("all")
+
+  // Get unique grades and sections
+  const grades = Array.from(new Set(students.map(student => student.grade))).sort()
+  const sections = Array.from(new Set(students.map(student => student.section))).sort()
+
+  // Filter students based on selected grade and section
+  const filteredStudents = students.filter(student => {
+    const gradeMatch = selectedGrade === "all" || student.grade === selectedGrade
+    const sectionMatch = selectedSection === "all" || student.section === selectedSection
+    return gradeMatch && sectionMatch
+  })
 
   useEffect(() => {
-    fetchPayments()
+    // Simulate loading
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+    }, 500)
   }, [])
 
-  const fetchPayments = async () => {
+  const fetchData = async () => {
+    setLoading(true)
+    // Simulate API call with timeout
+    setTimeout(() => {
+      setLoading(false)
+    }, 500)
+  }
+
+  const createPayment = async () => {
     try {
+      // Simulate API call
       setLoading(true)
-      const response = await fetch('/api/payments?include=student,payment_method')
-      if (response.ok) {
-        const data = await response.json()
-        setPayments(data)
-      }
+      
+      // Create payments for all selected students
+      const newPayments = selectedStudents.map(studentId => {
+        const student = students.find(s => s.id === studentId)
+        return {
+          id: Math.max(...payments.map(p => p.id)) + studentId,
+          student_id: studentId,
+          payment_method_id: parseInt(newPayment.payment_method_id),
+          amount: parseFloat(newPayment.amount),
+          status: "pending" as PaymentStatus,
+          reference_number: null,
+          description: newPayment.description,
+          due_date: newPayment.due_date,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          student: student!,
+          payment_method: paymentMethods.find(m => m.id === parseInt(newPayment.payment_method_id))!
+        }
+      })
+
+      setTimeout(() => {
+        setPayments(prev => [...newPayments, ...prev])
+        setIsCreateModalOpen(false)
+        setNewPayment({
+          student_ids: [],
+          payment_method_id: "",
+          amount: "",
+          description: "",
+          due_date: ""
+        })
+        setSelectedStudents([])
+        setSelectedGrade("all")
+        setSelectedSection("all")
+        setLoading(false)
+        alert(`${newPayments.length} payment(s) created successfully!`)
+      }, 1000)
+
     } catch (error) {
-      console.error('Error fetching payments:', error)
-    } finally {
+      console.error('Error creating payment:', error)
       setLoading(false)
     }
   }
 
-  const updatePaymentStatus = async (paymentId: number, newStatus: string) => {
+  const updatePaymentStatus = async (paymentId: number, newStatus: PaymentStatus) => {
     try {
-      const response = await fetch(`/api/payments/${paymentId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
-      })
+      setLoading(true)
+      
+      // Simulate API call
+      setTimeout(() => {
+        setPayments(prev => prev.map(payment =>
+          payment.id === paymentId 
+            ? { 
+                ...payment, 
+                status: newStatus,
+                updated_at: new Date().toISOString(),
+                reference_number: newStatus === 'paid' || newStatus === 'completed' ? `REF${Date.now()}` : payment.reference_number
+              }
+            : payment
+        ))
+        setLoading(false)
+        setIsViewModalOpen(false)
+        alert(`Payment status updated to ${newStatus}`)
+      }, 500)
 
-      if (response.ok) {
-        fetchPayments() // Refresh data
-      }
     } catch (error) {
       console.error('Error updating payment:', error)
+      setLoading(false)
     }
   }
 
-  const filteredPayments = payments.filter(payment => {
-    const matchesSearch = 
-      payment.student?.student_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      payment.reference_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      payment.student?.student_id.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    const matchesStatus = statusFilter === "all" || payment.status === statusFilter
-    const matchesMethod = methodFilter === "all" || payment.payment_method_id.toString() === methodFilter
-
-    return matchesSearch && matchesStatus && matchesMethod
-  })
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed': return <CheckCircle className="h-4 w-4 text-green-600" />
-      case 'pending': return <Clock className="h-4 w-4 text-yellow-600" />
-      case 'processing': return <Clock className="h-4 w-4 text-blue-600" />
-      case 'failed': return <XCircle className="h-4 w-4 text-red-600" />
-      default: return <Clock className="h-4 w-4 text-gray-600" />
-    }
+  const handleViewPayment = (payment: Payment) => {
+    setSelectedPayment(payment)
+    setIsViewModalOpen(true)
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200'
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'processing': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'failed': return 'bg-red-100 text-red-800 border-red-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">Loading payments...</div>
-      </div>
+  const toggleStudentSelection = (studentId: number) => {
+    setSelectedStudents(prev => 
+      prev.includes(studentId)
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
     )
+  }
+
+  const selectAllFilteredStudents = () => {
+    setSelectedStudents(filteredStudents.map(student => student.id))
+  }
+
+  const clearAllStudents = () => {
+    setSelectedStudents([])
+  }
+
+  const getStatusIcon = (status: PaymentStatus) => {
+    switch (status) {
+      case 'completed': 
+      case 'paid': 
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      case 'pending': 
+        return <Clock className="h-4 w-4 text-yellow-600" />
+      case 'processing': 
+        return <Clock className="h-4 w-4 text-blue-600" />
+      case 'reviewed':
+        return <CheckCircle className="h-4 w-4 text-purple-600" />
+      case 'failed': 
+        return <XCircle className="h-4 w-4 text-red-600" />
+      default: 
+        return <Clock className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const getStatusColor = (status: PaymentStatus) => {
+    switch (status) {
+      case 'completed': 
+      case 'paid': 
+        return 'bg-green-100 text-green-800 border-green-200'
+      case 'pending': 
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case 'processing': 
+        return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'reviewed':
+        return 'bg-purple-100 text-purple-800 border-purple-200'
+      case 'failed': 
+        return 'bg-red-100 text-red-800 border-red-200'
+      default: 
+        return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" asChild className="gap-2">
+            <a href="/admin">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </a>
+          </Button>
+
+          
+        </div>
+         
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Payment Management</h1>
           <p className="text-muted-foreground">
-            View and manage all student payments
+            View and manage all student payments as Adviser
           </p>
+          
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Download className="h-4 w-4" />
-            Export
+                <div className="flex items-center gap-2">
+          <UserCog className="h-5 w-5 text-blue-600" />
+          <span className="text-sm font-medium text-blue-600">Adviser Mode</span>
+        </div>
+
+     
+      </div>
+   <div className="flex items-center gap-2">
+         
+      
+          <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Payment
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={fetchPayments}>
+              <Button variant="outline" size="sm" className="gap-2" onClick={fetchData}>
             <RefreshCw className="h-4 w-4" />
             Refresh
           </Button>
         </div>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search students, reference numbers..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="processing">Processing</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={methodFilter} onValueChange={setMethodFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Methods</SelectItem>
-                  <SelectItem value="1">GCash</SelectItem>
-                  <SelectItem value="2">Cash</SelectItem>
-                  <SelectItem value="3">Bank Transfer</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+     
 
       {/* Payments Table */}
       <Card>
         <CardHeader>
           <CardTitle>All Payments</CardTitle>
           <CardDescription>
-            {filteredPayments.length} payments found
+            {payments.length} payments found
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {filteredPayments.map((payment) => (
-              <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div className="flex-shrink-0">
-                    {getStatusIcon(payment.status)}
-                  </div>
-                  <div>
-                    <div className="font-medium">
-                      {payment.student?.student_name} ({payment.student?.student_id})
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {payment.payment_method?.method_name} • ₱{payment.amount.toLocaleString()}
-                      {payment.reference_number && ` • Ref: ${payment.reference_number}`}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Due: {payment.due_date ? new Date(payment.due_date).toLocaleDateString() : 'Not set'}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <Badge variant="outline" className={getStatusColor(payment.status)}>
-                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                  </Badge>
-                  
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="gap-1">
-                      <Eye className="h-3 w-3" />
-                      View
-                    </Button>
-                    
-                    {payment.status === 'pending' && (
-                      <>
-                        <Button 
-                          size="sm" 
-                          className="gap-1"
-                          onClick={() => updatePaymentStatus(payment.id, 'processing')}
-                        >
-                          <CheckCircle className="h-3 w-3" />
-                          Process
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="gap-1 text-red-600"
-                          onClick={() => updatePaymentStatus(payment.id, 'failed')}
-                        >
-                          <XCircle className="h-3 w-3" />
-                          Reject
-                        </Button>
-                      </>
-                    )}
-
-                    {payment.status === 'processing' && (
-                      <>
-                        <Button 
-                          size="sm" 
-                          className="gap-1"
-                          onClick={() => updatePaymentStatus(payment.id, 'completed')}
-                        >
-                          <CheckCircle className="h-3 w-3" />
-                          Complete
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="gap-1 text-red-600"
-                          onClick={() => updatePaymentStatus(payment.id, 'failed')}
-                        >
-                          <XCircle className="h-3 w-3" />
-                          Reject
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {filteredPayments.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No payments found matching your criteria
-              </div>
-            )}
-          </div>
+          <PaymentsTable 
+            data={payments} 
+            onViewPayment={handleViewPayment}
+            onUpdatePaymentStatus={updatePaymentStatus}
+            loading={loading}
+          />
         </CardContent>
       </Card>
+
+      {/* Create Payment Modal */}
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Payment</DialogTitle>
+            <DialogDescription>
+              Create new payments for selected students. Filter by grade and section first, then select students.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Grade and Section Filters */}
+            <div className="space-y-2">
+              <Label htmlFor="grade">Grade</Label>
+              <Select value={selectedGrade} onValueChange={setSelectedGrade}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select grade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Grades</SelectItem>
+                  {grades.map(grade => (
+                    <SelectItem key={grade} value={grade}>
+                      Grade {grade}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="section">Section</Label>
+              <Select value={selectedSection} onValueChange={setSelectedSection}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select section" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sections</SelectItem>
+                  {sections.map(section => (
+                    <SelectItem key={section} value={section}>
+                      Section {section}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Student Selection */}
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="students">Select Students</Label>
+              <div className="flex gap-2 mb-2">
+                <Button type="button" variant="outline" size="sm" onClick={selectAllFilteredStudents}>
+                  Select All ({filteredStudents.length})
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={clearAllStudents}>
+                  Clear All
+                </Button>
+              </div>
+              <div className="border rounded-md p-4 max-h-60 overflow-y-auto">
+                {filteredStudents.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No students found for the selected grade and section.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredStudents.map(student => (
+                      <div key={student.id} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`student-${student.id}`}
+                          checked={selectedStudents.includes(student.id)}
+                          onChange={() => toggleStudentSelection(student.id)}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <Label htmlFor={`student-${student.id}`} className="flex-1 cursor-pointer">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            {student.student_name} ({student.student_id}) - {student.grade}-{student.section}
+                          </div>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {selectedStudents.length} student(s) selected out of {filteredStudents.length} filtered
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment_method">Payment Method</Label>
+              <Select 
+                value={newPayment.payment_method_id} 
+                onValueChange={(value) => setNewPayment({...newPayment, payment_method_id: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentMethods.map(method => (
+                    <SelectItem key={method.id} value={method.id.toString()}>
+                      {method.method_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount (₱)</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="0.00"
+                value={newPayment.amount}
+                onChange={(e) => setNewPayment({...newPayment, amount: e.target.value})}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="due_date">Due Date</Label>
+              <Input
+                id="due_date"
+                type="date"
+                value={newPayment.due_date}
+                onChange={(e) => setNewPayment({...newPayment, due_date: e.target.value})}
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                placeholder="Payment description (e.g., Tuition Fee for January 2024)"
+                value={newPayment.description}
+                onChange={(e) => setNewPayment({...newPayment, description: e.target.value})}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsCreateModalOpen(false)
+              setSelectedGrade("all")
+              setSelectedSection("all")
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={createPayment} 
+              disabled={loading || selectedStudents.length === 0 || !newPayment.payment_method_id || !newPayment.amount}
+            >
+              {loading ? "Creating..." : `Create ${selectedStudents.length} Payment(s)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Payment Modal */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Payment Details</DialogTitle>
+            <DialogDescription>
+              View and manage payment status as Adviser
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedPayment && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Student</Label>
+                  <p className="font-medium">{selectedPayment.student.student_name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedPayment.student.student_id}</p>
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Amount</Label>
+                  <p className="text-2xl font-bold text-green-600">
+                    ₱{selectedPayment.amount.toLocaleString()}
+                  </p>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Payment Method</Label>
+                  <p>{selectedPayment.payment_method.method_name}</p>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                  <Badge variant="outline" className={getStatusColor(selectedPayment.status)}>
+                    {selectedPayment.status.charAt(0).toUpperCase() + selectedPayment.status.slice(1)}
+                  </Badge>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Due Date</Label>
+                  <p>{selectedPayment.due_date ? new Date(selectedPayment.due_date).toLocaleDateString() : 'Not set'}</p>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Reference</Label>
+                  <p>{selectedPayment.reference_number || 'Not provided'}</p>
+                </div>
+
+                {selectedPayment.description && (
+                  <div className="col-span-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Description</Label>
+                    <p>{selectedPayment.description}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Status Update Actions */}
+              <div className="border-t pt-4">
+                <Label className="text-sm font-medium">Update Status</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedPayment.status === 'pending' && (
+                    <>
+                      <Button 
+                        size="sm" 
+                        className="gap-1"
+                        onClick={() => updatePaymentStatus(selectedPayment.id, 'reviewed')}
+                        disabled={loading}
+                      >
+                        <CheckCircle className="h-3 w-3" />
+                        {loading ? "Updating..." : "Mark as Reviewed"}
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="gap-1"
+                        onClick={() => updatePaymentStatus(selectedPayment.id, 'paid')}
+                        disabled={loading}
+                      >
+                        <CheckCircle className="h-3 w-3" />
+                        {loading ? "Updating..." : "Mark as Paid"}
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        className="gap-1"
+                        onClick={() => updatePaymentStatus(selectedPayment.id, 'failed')}
+                        disabled={loading}
+                      >
+                        <XCircle className="h-3 w-3" />
+                        {loading ? "Updating..." : "Reject"}
+                      </Button>
+                    </>
+                  )}
+
+                  {selectedPayment.status === 'reviewed' && (
+                    <>
+                      <Button 
+                        size="sm" 
+                        className="gap-1"
+                        onClick={() => updatePaymentStatus(selectedPayment.id, 'paid')}
+                        disabled={loading}
+                      >
+                        <CheckCircle className="h-3 w-3" />
+                        {loading ? "Updating..." : "Mark as Paid"}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-1"
+                        onClick={() => updatePaymentStatus(selectedPayment.id, 'pending')}
+                        disabled={loading}
+                      >
+                        <Clock className="h-3 w-3" />
+                        {loading ? "Updating..." : "Back to Pending"}
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        className="gap-1"
+                        onClick={() => updatePaymentStatus(selectedPayment.id, 'failed')}
+                        disabled={loading}
+                      >
+                        <XCircle className="h-3 w-3" />
+                        {loading ? "Updating..." : "Reject"}
+                      </Button>
+                    </>
+                  )}
+
+                  {(selectedPayment.status === 'paid' || selectedPayment.status === 'completed' || selectedPayment.status === 'failed') && (
+                    <>
+                      <Button 
+                        size="sm" 
+                        className="gap-1"
+                        onClick={() => updatePaymentStatus(selectedPayment.id, 'reviewed')}
+                        disabled={loading}
+                      >
+                        <CheckCircle className="h-3 w-3" />
+                        {loading ? "Updating..." : "Mark as Reviewed"}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-1"
+                        onClick={() => updatePaymentStatus(selectedPayment.id, 'pending')}
+                        disabled={loading}
+                      >
+                        <Clock className="h-3 w-3" />
+                        {loading ? "Updating..." : "Reset to Pending"}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
