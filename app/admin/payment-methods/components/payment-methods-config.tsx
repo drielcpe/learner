@@ -98,6 +98,7 @@ export function PaymentMethodsConfig() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchPaymentMethods()
@@ -105,22 +106,35 @@ export function PaymentMethodsConfig() {
 
   const fetchPaymentMethods = async () => {
     try {
+      setLoading(true)
+      setError(null)
+      
       // Try to fetch from API first
       const response = await fetch('/api/payment-methods')
       if (response.ok) {
         const data = await response.json()
-        setMethods(data)
+        
+        // Handle different possible API response structures
+        if (Array.isArray(data)) {
+          setMethods(data)
+        } else if (data && Array.isArray(data.data)) {
+          // If response has { data: [...] } structure
+          setMethods(data.data)
+        } else if (data && Array.isArray(data.paymentMethods)) {
+          // If response has { paymentMethods: [...] } structure
+          setMethods(data.paymentMethods)
+        } else {
+          console.warn('Unexpected API response structure:', data)
+          setMethods(dummyPaymentMethods)
+        }
       } else {
         // If API fails, use dummy data
         throw new Error('API not available')
       }
     } catch (error) {
       console.log('API not available, using dummy data')
-      // Use dummy data with a delay to simulate loading
-      setTimeout(() => {
-        setMethods(dummyPaymentMethods)
-        setLoading(false)
-      }, 1000)
+      setError('Failed to load payment methods from API')
+      setMethods(dummyPaymentMethods)
     } finally {
       setLoading(false)
     }
@@ -143,7 +157,7 @@ export function PaymentMethodsConfig() {
       if (isCreating) {
         // Create new method
         const newMethod: PaymentMethod = {
-          id: Math.max(...methods.map(m => m.id)) + 1,
+          id: methods.length > 0 ? Math.max(...methods.map(m => m.id)) + 1 : 1,
           method_code: method.method_code || "",
           method_name: method.method_name || "",
           description: method.description || "",
@@ -217,6 +231,17 @@ export function PaymentMethodsConfig() {
     )
   }
 
+  if (error && methods.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-destructive mb-4">{error}</p>
+          <Button onClick={fetchPaymentMethods}>Retry</Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -232,7 +257,12 @@ export function PaymentMethodsConfig() {
         </Button>
       </div>
 
-   
+      {error && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+          <p className="text-yellow-800 text-sm">{error}</p>
+        </div>
+      )}
+
       {/* Payment Methods Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {methods.map((method) => (

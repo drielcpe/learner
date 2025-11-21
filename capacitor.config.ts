@@ -8,6 +8,11 @@ const config: CapacitorConfig = {
     url: 'http://192.168.1.14:3000',
     cleartext: true,
   },
+   plugins: {
+    Camera: {
+      enable: true
+    }
+  }
 };
 
 export default config;

@@ -1,3 +1,4 @@
+// app/student-management/components/students-table.tsx
 "use client"
 
 import * as React from "react"
@@ -22,10 +23,9 @@ import {
 
 import { DataTablePagination } from "@/app/attendance/components/data-table-pagination"
 import { DataTableToolbar } from "@/app/attendance/components/data-table-toolbar"
-import type { Student, StudentStatus } from "../data/schema"
+import type { Student } from "../data/schema"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Eye, Edit, Mail, Phone, Bell, MoreHorizontal, Save, X } from "lucide-react"
+import { Eye, Edit, Mail, Phone, MoreHorizontal, Save, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import {
@@ -36,16 +36,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,23 +48,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-// Define custom table meta type for STUDENTS with unique property names
+// Define custom table meta type for STUDENTS
 declare module "@tanstack/react-table" {
   interface TableMeta<TData extends unknown> {
-    onStudentStatusUpdate?: (studentId: string, newStatus: StudentStatus) => void
     onStudentUpdate?: (studentId: string, updatedData: Partial<Student>) => void
     isStudentUpdating?: boolean
     showStudentActions?: boolean
   }
 }
-
-// Status badge configuration
-const statusConfig = {
-  active: { color: "bg-green-100 text-green-800 border-green-200", label: "Active" },
-  inactive: { color: "bg-yellow-100 text-yellow-800 border-yellow-200", label: "Inactive" },
-  graduated: { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Graduated" },
-  transferred: { color: "bg-purple-100 text-purple-800 border-purple-200", label: "Transferred" },
-} as const
 
 const columns: ColumnDef<Student>[] = [
   {
@@ -120,37 +101,57 @@ const columns: ColumnDef<Student>[] = [
       </div>
     ),
   },
+ {
+  accessorKey: "birth_date",
+  header: "Birth Date",
+  cell: ({ row }) => (
+    <div className="text-sm">
+      {row.original.birth_date ? new Date(row.original.birth_date).toLocaleDateString() : "-"}
+    </div>
+  ),
+},
   {
-    accessorKey: "birth_date",
-    header: "Birth Date",
-    cell: ({ row }) => (
-      <div className="text-sm">
-        {row.original.birth_date ? new Date(row.original.birth_date).toLocaleDateString() : "-"}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "enrollment_date",
-    header: "Enrollment Date",
-    cell: ({ row }) => (
-      <div className="text-sm">
-        {new Date(row.original.enrollment_date).toLocaleDateString()}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => {
-      const status = row.original.status
-      const config = statusConfig[status]
-      return (
-        <Badge variant="outline" className={config.color}>
-          {config.label}
-        </Badge>
-      )
-    },
-  },
+  accessorKey: "enrollment_date",
+  header: "Enrollment Date",
+  cell: ({ row }) => (
+    <div className="text-sm">
+      {row.original.enrollment_date ? new Date(row.original.enrollment_date).toLocaleDateString() : "-"}
+    </div>
+  ),
+},
+ {
+  accessorKey: "qr_code",
+  header: "QR Code",
+  cell: ({ row }) => (
+    <div className="flex justify-center">
+      {row.original.qr_code ? (
+        <div className="flex flex-col items-center gap-1">
+          <img 
+            src={row.original.qr_code} 
+            alt="QR Code" 
+            className="w-12 h-12 object-contain border rounded hover:scale-110 transition-transform cursor-pointer"
+            onClick={() => {
+              // Open QR code in modal for better view
+              const modal = document.createElement('div');
+              modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+              modal.innerHTML = `
+                <div class="bg-white p-4 rounded-lg">
+                  <img src="${row.original.qr_code}" alt="QR Code" class="w-64 h-64" />
+                  <p class="text-center mt-2 text-sm">${row.original.student_name}</p>
+                  <button onclick="this.parentElement.parentElement.remove()" class="mt-2 w-full bg-gray-200 hover:bg-gray-300 py-1 rounded">Close</button>
+                </div>
+              `;
+              document.body.appendChild(modal);
+            }}
+          />
+          <span className="text-xs text-muted-foreground">Click to view</span>
+        </div>
+      ) : (
+        <span className="text-xs text-muted-foreground">No QR</span>
+      )}
+    </div>
+  ),
+},
   {
     id: "actions",
     header: "Actions",
@@ -159,103 +160,48 @@ const columns: ColumnDef<Student>[] = [
       const student = row.original
       const [viewModalOpen, setViewModalOpen] = useState(false)
       const [editModalOpen, setEditModalOpen] = useState(false)
-      const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false)
-      const [activateDialogOpen, setActivateDialogOpen] = useState(false)
-      const [notifyDialogOpen, setNotifyDialogOpen] = useState(false)
       
       // Edit form state
-      const [editForm, setEditForm] = useState({
-        student_name: student.student_name,
-        grade: student.grade,
-        section: student.section,
-        adviser: student.adviser,
-        contact_number: student.contact_number || "",
-        email: student.email || "",
-        address: student.address || "",
-        birth_date: student.birth_date || "",
-      })
+ const [editForm, setEditForm] = useState({
+  student_name: student.student_name,
+  grade: student.grade,
+  section: student.section,
+  adviser: student.adviser || "",
+  contact_number: student.contact_number || "",
+  email: student.email || "",
+  address: student.address || "",
+  birth_date: student.birth_date || "",
+})
 
-      // Get meta values from table using unique property names
+
+      // Get meta values from table
       const showActions = table.options.meta?.showStudentActions
-      const onStatusUpdate = table.options.meta?.onStudentStatusUpdate
       const onStudentUpdate = table.options.meta?.onStudentUpdate
       const isUpdating = table.options.meta?.isStudentUpdating
-
-      const handleStatusUpdate = (newStatus: StudentStatus) => {
-        if (onStatusUpdate) {
-          onStatusUpdate(student.id, newStatus)
-        }
-      }
-
-      const handleSaveEdit = async () => {
-        if (onStudentUpdate) {
-          await onStudentUpdate(student.id, editForm)
-          setEditModalOpen(false)
-        }
-      }
-
-const handleNotify = async (method: 'call' | 'email' | 'sms') => {
-  try {
-    switch (method) {
-      case 'call':
-        if (!student.contact_number) {
-          alert('No contact number available for this student')
-          return
-        }
-        
-        const cleanNumber = student.contact_number.replace(/[^\d+]/g, '')
-        
-        // Check if we're in a mobile environment
-        if (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-          // Mobile device - use tel: protocol
-          window.open(`tel:${cleanNumber}`, '_blank')
-        } else {
-          // Desktop - show number and instructions
-          alert(`Call ${student.student_name}'s parents at: ${cleanNumber}\n\nOn mobile devices, this would open your phone dialer automatically.`)
-        }
-        break
-
-      case 'email':
-        if (!student.email) {
-          alert('No email address available for this student')
-          return
-        }
-        
-        if (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-          // Mobile device
-          window.open(`mailto:${student.email}?subject=Regarding ${student.student_name}&body=Dear Parent/Guardian,`, '_blank')
-        } else {
-          // Desktop
-          window.open(`mailto:${student.email}`, '_blank')
-        }
-        break
-
-      case 'sms':
-        if (!student.contact_number) {
-          alert('No contact number available for this student')
-          return
-        }
-        
-        const smsNumber = student.contact_number.replace(/[^\d+]/g, '')
-        const message = `Regarding ${student.student_name}`
-        
-        if (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-          // Mobile device
-          window.open(`sms:${smsNumber}?body=${encodeURIComponent(message)}`, '_blank')
-        } else {
-          // Desktop - show instructions
-          alert(`SMS ${student.student_name}'s parents at: ${smsNumber}\n\nMessage: ${message}\n\nOn mobile devices, this would open your messaging app automatically.`)
-        }
-        break
-    }
-  } catch (error) {
-    console.error('Error opening communication app:', error)
-    alert('Unable to open communication app. Please check your device settings.')
-  } finally {
-    setNotifyDialogOpen(false)
+const handleSaveEdit = async () => {
+  console.log('🎯 handleSaveEdit called');
+  console.log('📝 Edit form data:', editForm);
+  
+  if (onStudentUpdate) {
+    // Convert null to undefined to match the Student type
+    const updateData = {
+      student_name: editForm.student_name,
+      grade: editForm.grade,
+      section: editForm.section,
+      adviser: editForm.adviser || undefined, // Convert null to undefined
+      contact_number: editForm.contact_number || undefined, // Convert null to undefined
+      email: editForm.email || undefined, // Convert null to undefined
+      address: editForm.address || undefined, // Convert null to undefined
+      birth_date: editForm.birth_date || undefined, // Convert null to undefined
+    };
+    
+    console.log('📤 Sending update data to parent:', updateData);
+    
+    // Convert ID to string to ensure type safety
+    await onStudentUpdate(student.id.toString(), updateData);
+    setEditModalOpen(false);
   }
 }
-
       const handleFormChange = (field: string, value: string) => {
         setEditForm(prev => ({
           ...prev,
@@ -291,49 +237,6 @@ const handleNotify = async (method: 'call' | 'email' | 'sms') => {
                   Edit
                 </Button>
 
-                {/* Notify Dropdown */}
-        <DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <Button variant="outline" size="sm" className="h-8 gap-1">
-      <Bell className="h-3 w-3" />
-      Notify
-    </Button>
-  </DropdownMenuTrigger>
-  <DropdownMenuContent align="end">
-    <DropdownMenuLabel>Contact Options</DropdownMenuLabel>
-    <DropdownMenuItem 
-      onClick={() => handleNotify('call')}
-      disabled={!student.contact_number}
-    >
-      <Phone className="h-4 w-4 mr-2" />
-      Call Parents
-      {!student.contact_number && (
-        <span className="ml-2 text-xs text-muted-foreground">No number</span>
-      )}
-    </DropdownMenuItem>
-    <DropdownMenuItem 
-      onClick={() => handleNotify('email')}
-      disabled={!student.email}
-    >
-      <Mail className="h-4 w-4 mr-2" />
-      Send Email
-      {!student.email && (
-        <span className="ml-2 text-xs text-muted-foreground">No email</span>
-      )}
-    </DropdownMenuItem>
-    <DropdownMenuItem 
-      onClick={() => handleNotify('sms')}
-      disabled={!student.contact_number}
-    >
-      <Bell className="h-4 w-4 mr-2" />
-      Send SMS
-      {!student.contact_number && (
-        <span className="ml-2 text-xs text-muted-foreground">No number</span>
-      )}
-    </DropdownMenuItem>
-  </DropdownMenuContent>
-</DropdownMenu>
-
                 {/* More Actions Dropdown */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -343,19 +246,6 @@ const handleNotify = async (method: 'call' | 'email' | 'sms') => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>More Actions</DropdownMenuLabel>
-                    <DropdownMenuItem 
-                      onClick={() => setActivateDialogOpen(true)}
-                      disabled={student.status === 'active'}
-                    >
-                      Activate Student
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => setDeactivateDialogOpen(true)}
-                      disabled={student.status === 'inactive'}
-                    >
-                      Deactivate Student
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem 
                       onClick={() => router.push(`/student-management/attendance/${student.id}`)}
                     >
@@ -372,64 +262,61 @@ const handleNotify = async (method: 'call' | 'email' | 'sms') => {
             )}
           </div>
 
-          {/* View Student Modal */}
-          <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Student Information</DialogTitle>
-                <DialogDescription>
-                  Detailed information about {student.student_name}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid grid-cols-2 gap-4 py-4">
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Student ID</label>
-                    <p className="font-mono">{student.student_id}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Full Name</label>
-                    <p>{student.student_name}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Grade & Section</label>
-                    <p>Grade {student.grade} - {student.section}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Adviser</label>
-                    <p>{student.adviser}</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Contact Number</label>
-                    <p>{student.contact_number || "Not provided"}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Email</label>
-                    <p>{student.email || "Not provided"}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Birth Date</label>
-                    <p>{student.birth_date ? new Date(student.birth_date).toLocaleDateString() : "Not provided"}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Enrollment Date</label>
-                    <p>{new Date(student.enrollment_date).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                {student.address && (
-                  <div className="col-span-2">
-                    <label className="text-sm font-medium text-muted-foreground">Address</label>
-                    <p>{student.address}</p>
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-end gap-2">
-             
-              </div>
-            </DialogContent>
-          </Dialog>
+         {/* View Student Modal */}
+<Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
+  <DialogContent className="max-w-2xl">
+    <DialogHeader>
+      <DialogTitle>Student Information</DialogTitle>
+      <DialogDescription>
+        Detailed information about {student.student_name}
+      </DialogDescription>
+    </DialogHeader>
+    <div className="grid grid-cols-2 gap-4 py-4">
+      <div className="space-y-2">
+        <div>
+          <label className="text-sm font-medium text-muted-foreground">Student ID</label>
+          <p className="font-mono">{student.student_id}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-muted-foreground">Full Name</label>
+          <p>{student.student_name}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-muted-foreground">Grade & Section</label>
+          <p>Grade {student.grade} - {student.section}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-muted-foreground">Adviser</label>
+          <p>{student.adviser}</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <div>
+          <label className="text-sm font-medium text-muted-foreground">Contact Number</label>
+          <p>{student.contact_number || "Not provided"}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-muted-foreground">Email</label>
+          <p>{student.email || "Not provided"}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-muted-foreground">Birth Date</label>
+          <p>{student.birth_date ? new Date(student.birth_date).toLocaleDateString() : "Not provided"}</p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-muted-foreground">Enrollment Date</label>
+          <p>{student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString() : "Not provided"}</p>
+        </div>
+      </div>
+      {student.address && (
+        <div className="col-span-2">
+          <label className="text-sm font-medium text-muted-foreground">Address</label>
+          <p>{student.address}</p>
+        </div>
+      )}
+    </div>
+  </DialogContent>
+</Dialog>
 
           {/* Edit Student Modal */}
           <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
@@ -499,51 +386,50 @@ const handleNotify = async (method: 'call' | 'email' | 'sms') => {
                   />
                 </div>
 
-                {/* Contact Information */}
                 <div className="col-span-2 border-t pt-4">
-                  <h4 className="font-medium mb-3">Contact Information</h4>
-                </div>
+  <h4 className="font-medium mb-3">Contact Information</h4>
+</div>
 
-                <div>
-                  <Label htmlFor="contact_number">Contact Number</Label>
-                  <Input 
-                    id="contact_number"
-                    value={editForm.contact_number}
-                    onChange={(e) => handleFormChange('contact_number', e.target.value)}
-                    placeholder="+1234567890"
-                  />
-                </div>
+<div>
+  <Label htmlFor="contact_number">Contact Number</Label>
+  <Input 
+    id="contact_number"
+    value={editForm.contact_number}
+    onChange={(e) => handleFormChange('contact_number', e.target.value)}
+    placeholder="+1234567890"
+  />
+</div>
 
-                <div>
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input 
-                    id="email"
-                    type="email"
-                    value={editForm.email}
-                    onChange={(e) => handleFormChange('email', e.target.value)}
-                    placeholder="student@school.edu"
-                  />
-                </div>
+<div>
+  <Label htmlFor="email">Email Address</Label>
+  <Input 
+    id="email"
+    type="email"
+    value={editForm.email}
+    onChange={(e) => handleFormChange('email', e.target.value)}
+    placeholder="student@school.edu"
+  />
+</div>
 
-                <div className="col-span-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input 
-                    id="address"
-                    value={editForm.address}
-                    onChange={(e) => handleFormChange('address', e.target.value)}
-                    placeholder="Full address"
-                  />
-                </div>
+<div className="col-span-2">
+  <Label htmlFor="address">Address</Label>
+  <Input 
+    id="address"
+    value={editForm.address}
+    onChange={(e) => handleFormChange('address', e.target.value)}
+    placeholder="Full address"
+  />
+</div>
 
-                <div>
-                  <Label htmlFor="birth_date">Birth Date</Label>
-                  <Input 
-                    id="birth_date"
-                    type="date"
-                    value={editForm.birth_date}
-                    onChange={(e) => handleFormChange('birth_date', e.target.value)}
-                  />
-                </div>
+<div>
+  <Label htmlFor="birth_date">Birth Date</Label>
+  <Input 
+    id="birth_date"
+    type="date"
+    value={editForm.birth_date}
+    onChange={(e) => handleFormChange('birth_date', e.target.value)}
+  />
+</div>
               </div>
 
               <DialogFooter>
@@ -558,50 +444,6 @@ const handleNotify = async (method: 'call' | 'email' | 'sms') => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-
-          {/* Deactivate Confirmation Dialog */}
-          <AlertDialog open={deactivateDialogOpen} onOpenChange={setDeactivateDialogOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Deactivate Student</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to deactivate {student.student_name}? 
-                  This will change their status to inactive and they will no longer appear in active class lists.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={() => handleStatusUpdate('inactive')}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  Yes, Deactivate
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-
-          {/* Activate Confirmation Dialog */}
-          <AlertDialog open={activateDialogOpen} onOpenChange={setActivateDialogOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Activate Student</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to activate {student.student_name}? 
-                  This will change their status to active and they will appear in class lists.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={() => handleStatusUpdate('active')}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  Yes, Activate
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </>
       )
     },
@@ -610,7 +452,6 @@ const handleNotify = async (method: 'call' | 'email' | 'sms') => {
 
 interface StudentsTableProps {
   data: Student[]
-  onStatusUpdate?: (studentId: string, newStatus: StudentStatus) => void
   onStudentUpdate?: (studentId: string, updatedData: Partial<Student>) => void
   isUpdating?: boolean
   showActions?: boolean
@@ -618,7 +459,6 @@ interface StudentsTableProps {
 
 export function StudentsTable({ 
   data, 
-  onStatusUpdate, 
   onStudentUpdate,
   isUpdating = false, 
   showActions = false 
@@ -631,7 +471,6 @@ export function StudentsTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     meta: {
-      onStudentStatusUpdate: onStatusUpdate,
       onStudentUpdate: onStudentUpdate,
       isStudentUpdating: isUpdating,
       showStudentActions: showActions

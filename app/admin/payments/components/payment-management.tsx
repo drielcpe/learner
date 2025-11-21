@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Download, RefreshCw, Eye, CheckCircle, XCircle, Clock, Plus, User, ChevronDown } from "lucide-react"
+import { Search, Filter, Download, RefreshCw, Eye, CheckCircle, XCircle, Clock, Plus, User, ChevronDown, Paperclip } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -45,7 +45,6 @@ import {
 
 // Types
 type PaymentStatus = "pending" | "processing" | "completed" | "paid" | "failed" | "cancelled" | "reviewed"
-type PaymentMethod = "gcash" | "cash" | "bank_transfer"
 
 interface Student {
   id: number
@@ -58,7 +57,7 @@ interface Student {
 
 interface PaymentMethodType {
   id: number
-  method_code: PaymentMethod
+  method_code: string
   method_name: string
   description: string
 }
@@ -70,95 +69,22 @@ interface Payment {
   amount: number
   status: PaymentStatus
   reference_number: string | null
+  reference_file: string | null
   description: string
+  desc: string | null
   due_date: string
+  paid_date: string | null
   created_at: string
   updated_at: string
-  student: Student
-  payment_method: PaymentMethodType
+  // Joined fields
+  student_code?: string
+  student_name?: string
   grade?: string
   section?: string
   adviser?: string
+  method_name?: string
+  method_code?: string
 }
-
-// Dummy data with more students for better filtering
-const dummyStudents: Student[] = [
-  { id: 1, student_id: "2024-001", student_name: "John Doe", grade: "7", section: "A", adviser: "Ms. Smith" },
-  { id: 2, student_id: "2024-002", student_name: "Jane Smith", grade: "7", section: "A", adviser: "Ms. Smith" },
-  { id: 3, student_id: "2024-003", student_name: "Mike Johnson", grade: "7", section: "B", adviser: "Mr. Johnson" },
-  { id: 4, student_id: "2024-004", student_name: "Sarah Wilson", grade: "7", section: "B", adviser: "Mr. Johnson" },
-  { id: 5, student_id: "2024-005", student_name: "David Brown", grade: "8", section: "A", adviser: "Ms. Davis" },
-  { id: 6, student_id: "2024-006", student_name: "Emily Davis", grade: "8", section: "A", adviser: "Ms. Davis" },
-  { id: 7, student_id: "2024-007", student_name: "Chris Lee", grade: "8", section: "B", adviser: "Mr. Wilson" },
-  { id: 8, student_id: "2024-008", student_name: "Amanda Garcia", grade: "8", section: "B", adviser: "Mr. Wilson" },
-  { id: 9, student_id: "2024-009", student_name: "Michael Chen", grade: "9", section: "A", adviser: "Ms. Taylor" },
-  { id: 10, student_id: "2024-010", student_name: "Jessica Martinez", grade: "9", section: "A", adviser: "Ms. Taylor" },
-]
-
-const dummyPaymentMethods: PaymentMethodType[] = [
-  { id: 1, method_code: "gcash", method_name: "GCash", description: "Mobile wallet payment" },
-  { id: 2, method_code: "cash", method_name: "Cash", description: "Physical cash payment" },
-  { id: 3, method_code: "bank_transfer", method_name: "Bank Transfer", description: "Bank transfer payment" },
-]
-
-const dummyPayments: Payment[] = [
-  {
-    id: 1,
-    student_id: 1,
-    payment_method_id: 1,
-    amount: 1500,
-    status: "pending",
-    reference_number: "GCASH12345",
-    description: "Tuition Fee for January 2024",
-    due_date: "2024-02-15",
-    created_at: "2024-01-15T00:00:00Z",
-    updated_at: "2024-01-15T00:00:00Z",
-    student: dummyStudents[0],
-    payment_method: dummyPaymentMethods[0]
-  },
-  {
-    id: 2,
-    student_id: 2,
-    payment_method_id: 2,
-    amount: 1500,
-    status: "processing",
-    reference_number: null,
-    description: "Tuition Fee for January 2024",
-    due_date: "2024-02-15",
-    created_at: "2024-01-15T00:00:00Z",
-    updated_at: "2024-01-16T00:00:00Z",
-    student: dummyStudents[1],
-    payment_method: dummyPaymentMethods[1]
-  },
-  {
-    id: 3,
-    student_id: 3,
-    payment_method_id: 3,
-    amount: 2000,
-    status: "completed",
-    reference_number: "BANK67890",
-    description: "Tuition and Books Fee",
-    due_date: "2024-02-10",
-    created_at: "2024-01-10T00:00:00Z",
-    updated_at: "2024-01-12T00:00:00Z",
-    student: dummyStudents[2],
-    payment_method: dummyPaymentMethods[2]
-  },
-  {
-    id: 4,
-    student_id: 4,
-    payment_method_id: 1,
-    amount: 1500,
-    status: "failed",
-    reference_number: "GCASH54321",
-    description: "Tuition Fee for January 2024",
-    due_date: "2024-02-15",
-    created_at: "2024-01-14T00:00:00Z",
-    updated_at: "2024-01-16T00:00:00Z",
-    student: dummyStudents[3],
-    payment_method: dummyPaymentMethods[0]
-  }
-]
 
 // Status badge configuration
 const statusConfig = {
@@ -272,7 +198,6 @@ function DataTableToolbar({ table }: { table: any }) {
         </div>
       </div>
       <div className="flex items-center gap-2">
-       
         <Select
           value={(table.getColumn("status")?.getFilterValue() as string) ?? "all"}
           onValueChange={(value) => 
@@ -294,9 +219,9 @@ function DataTableToolbar({ table }: { table: any }) {
         </Select>
 
         <Select
-          value={(table.getColumn("payment_method")?.getFilterValue() as string) ?? "all"}
+          value={(table.getColumn("method_name")?.getFilterValue() as string) ?? "all"}
           onValueChange={(value) => 
-            table.getColumn("payment_method")?.setFilterValue(value === "all" ? "" : value)
+            table.getColumn("method_name")?.setFilterValue(value === "all" ? "" : value)
           }
         >
           <SelectTrigger className="w-[150px]">
@@ -304,11 +229,9 @@ function DataTableToolbar({ table }: { table: any }) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Methods</SelectItem>
-            {dummyPaymentMethods.map(method => (
-              <SelectItem key={method.id} value={method.method_code}>
-                {method.method_name}
-              </SelectItem>
-            ))}
+            <SelectItem value="GCash">GCash</SelectItem>
+            <SelectItem value="Cash">Cash</SelectItem>
+            <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -328,10 +251,10 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
   // Enhanced columns definition
   const columns: ColumnDef<Payment>[] = [
     {
-      accessorKey: "student_id",
+      accessorKey: "student_code",
       header: "Student ID",
       cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.student.student_id}</span>
+        <span className="font-mono text-sm">{row.original.student_code}</span>
       ),
     },
     {
@@ -339,9 +262,9 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
       header: "Student Name",
       cell: ({ row }) => (
         <div>
-          <div className="font-medium">{row.original.student.student_name}</div>
+          <div className="font-medium">{row.original.student_name}</div>
           <div className="text-xs text-muted-foreground">
-            {row.original.student.grade} - {row.original.student.section}
+            {row.original.grade} - {row.original.section}
           </div>
         </div>
       ),
@@ -349,7 +272,7 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
     {
       accessorKey: "adviser",
       header: "Adviser",
-      cell: ({ row }) => row.original.student.adviser,
+      cell: ({ row }) => row.original.adviser || "-",
     },
     {
       accessorKey: "amount",
@@ -359,11 +282,14 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
       ),
     },
     {
-      accessorKey: "payment_method",
+      accessorKey: "method_name",
       header: "Method",
       cell: ({ row }) => {
-        const method = row.original.payment_method.method_code as PaymentMethod
-        const config = methodConfig[method]
+        const methodCode = row.original.method_code as keyof typeof methodConfig;
+        const config = methodConfig[methodCode] || { 
+          color: "bg-gray-100 text-gray-800 border-gray-200", 
+          label: row.original.method_name || "Unknown" 
+        };
         return (
           <Badge variant="outline" className={config.color}>
             {config.label}
@@ -394,6 +320,15 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
         <span className="font-mono text-sm">
           {row.original.reference_number || "-"}
         </span>
+      ),
+    },
+    {
+      accessorKey: "desc",
+      header: "Description",
+      cell: ({ row }) => (
+        <div className="max-w-[200px] truncate" title={row.original.desc || ""}>
+          {row.original.desc || "-"}
+        </div>
       ),
     },
     {
@@ -458,6 +393,9 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
 
         const availableActions = getAvailableActions()
 
+        // Hide actions dropdown for paid and completed payments
+        const shouldHideActions = payment.status === 'paid' || payment.status === 'completed'
+
         return (
           <div className="flex gap-2">
             {/* View button - always visible */}
@@ -472,27 +410,29 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
               View
             </Button>
           
-            {/* Adviser Actions Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="default" size="sm" className="h-8 gap-1" disabled={loading}>
-                  Actions
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {availableActions.map((action) => (
-                  <DropdownMenuItem 
-                    key={action.status}
-                    onClick={() => handleStatusUpdate(action.status)}
-                    className={action.variant === "destructive" ? "text-red-600 focus:text-red-600" : ""}
-                    disabled={loading}
-                  >
-                    {action.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Adviser Actions Dropdown - hidden for paid/completed payments */}
+            {!shouldHideActions && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="default" size="sm" className="h-8 gap-1" disabled={loading}>
+                    Actions
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {availableActions.map((action) => (
+                    <DropdownMenuItem 
+                      key={action.status}
+                      onClick={() => handleStatusUpdate(action.status)}
+                      className={action.variant === "destructive" ? "text-red-600 focus:text-red-600" : ""}
+                      disabled={loading}
+                    >
+                      {action.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         )
       },
@@ -562,9 +502,11 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
 
 // Main PaymentManagement Component
 export function PaymentManagement() {
-  const [payments, setPayments] = useState<Payment[]>(dummyPayments)
-  const [students, setStudents] = useState<Student[]>(dummyStudents)
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodType[]>(dummyPaymentMethods)
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [students, setStudents] = useState<Student[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodType[]>([])
+  const [grades, setGrades] = useState<string[]>([])
+  const [sections, setSections] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   
   // Modal states
@@ -578,6 +520,7 @@ export function PaymentManagement() {
     payment_method_id: "",
     amount: "",
     description: "",
+    desc: "",
     due_date: ""
   })
 
@@ -586,10 +529,6 @@ export function PaymentManagement() {
   const [selectedGrade, setSelectedGrade] = useState<string>("all")
   const [selectedSection, setSelectedSection] = useState<string>("all")
 
-  // Get unique grades and sections
-  const grades = Array.from(new Set(students.map(student => student.grade))).sort()
-  const sections = Array.from(new Set(students.map(student => student.section))).sort()
-
   // Filter students based on selected grade and section
   const filteredStudents = students.filter(student => {
     const gradeMatch = selectedGrade === "all" || student.grade === selectedGrade
@@ -597,99 +536,123 @@ export function PaymentManagement() {
     return gradeMatch && sectionMatch
   })
 
-  useEffect(() => {
-    // Simulate loading
-    setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-    }, 500)
-  }, [])
-
+  // Fetch all data
   const fetchData = async () => {
     setLoading(true)
-    // Simulate API call with timeout
-    setTimeout(() => {
-      setLoading(false)
-    }, 500)
+    try {
+      const [paymentsRes, studentsRes, methodsRes] = await Promise.all([
+        fetch('/api/payments'),
+        fetch('/api/students'),
+        fetch('/api/payment-methods')
+      ]);
+      
+      const paymentsData = await paymentsRes.json();
+      const studentsData = await studentsRes.json();
+      const methodsData = await methodsRes.json();
+      
+      if (paymentsData.success) setPayments(paymentsData.data);
+      if (studentsData.success) {
+        setStudents(studentsData.data);
+        // Extract unique grades and sections
+        const uniqueGrades = Array.from(new Set(studentsData.data.map((s: Student) => s.grade))).sort() as string[];
+        const uniqueSections = Array.from(new Set(studentsData.data.map((s: Student) => s.section))).sort() as string[];
+        setGrades(uniqueGrades);
+        setSections(uniqueSections);
+      }
+      if (methodsData.success) setPaymentMethods(methodsData.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      alert('Failed to fetch data. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
   }
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const createPayment = async () => {
     try {
-      // Simulate API call
-      setLoading(true)
-      
-      // Create payments for all selected students
-      const newPayments = selectedStudents.map(studentId => {
-        const student = students.find(s => s.id === studentId)
-        return {
-          id: Math.max(...payments.map(p => p.id)) + studentId,
-          student_id: studentId,
-          payment_method_id: parseInt(newPayment.payment_method_id),
-          amount: parseFloat(newPayment.amount),
-          status: "pending" as PaymentStatus,
-          reference_number: null,
-          description: newPayment.description,
-          due_date: newPayment.due_date,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          student: student!,
-          payment_method: paymentMethods.find(m => m.id === parseInt(newPayment.payment_method_id))!
-        }
-      })
+      setLoading(true);
 
-      setTimeout(() => {
-        setPayments(prev => [...newPayments, ...prev])
-        setIsCreateModalOpen(false)
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          student_ids: selectedStudents,
+          amount: parseFloat(newPayment.amount),
+          description: newPayment.description,
+          desc: newPayment.desc,
+          payment_method_id: parseInt(newPayment.payment_method_id),
+          due_date: newPayment.due_date
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Refresh the payments list
+        await fetchData();
+        setIsCreateModalOpen(false);
         setNewPayment({
           student_ids: [],
           payment_method_id: "",
           amount: "",
           description: "",
+          desc: "",
           due_date: ""
-        })
-        setSelectedStudents([])
-        setSelectedGrade("all")
-        setSelectedSection("all")
-        setLoading(false)
-        alert(`${newPayments.length} payment(s) created successfully!`)
-      }, 1000)
-
+        });
+        setSelectedStudents([]);
+        setSelectedGrade("all");
+        setSelectedSection("all");
+        alert(result.message);
+      } else {
+        alert('Failed to create payment: ' + result.error);
+      }
     } catch (error) {
-      console.error('Error creating payment:', error)
-      setLoading(false)
+      console.error('Error creating payment:', error);
+      alert('Failed to create payment. Please try again.');
+    } finally {
+      setLoading(false);
     }
   }
 
   const updatePaymentStatus = async (paymentId: number, newStatus: PaymentStatus) => {
     try {
-      setLoading(true)
+      setLoading(true);
       
-      // Simulate API call
-      setTimeout(() => {
-        setPayments(prev => prev.map(payment =>
-          payment.id === paymentId 
-            ? { 
-                ...payment, 
-                status: newStatus,
-                updated_at: new Date().toISOString(),
-                reference_number: newStatus === 'paid' || newStatus === 'completed' ? `REF${Date.now()}` : payment.reference_number
-              }
-            : payment
-        ))
-        setLoading(false)
-        setIsViewModalOpen(false)
-        alert(`Payment status updated to ${newStatus}`)
-      }, 500)
+      const response = await fetch(`/api/payments/${paymentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
 
+      const result = await response.json();
+
+      if (result.success) {
+        // Refresh the payments list
+        await fetchData();
+        setIsViewModalOpen(false);
+        alert(result.message);
+      } else {
+        alert('Failed to update payment: ' + result.error);
+      }
     } catch (error) {
-      console.error('Error updating payment:', error)
-      setLoading(false)
+      console.error('Error updating payment:', error);
+      alert('Failed to update payment. Please try again.');
+    } finally {
+      setLoading(false);
     }
   }
 
   const handleViewPayment = (payment: Payment) => {
-    setSelectedPayment(payment)
-    setIsViewModalOpen(true)
+    setSelectedPayment(payment);
+    setIsViewModalOpen(true);
   }
 
   const toggleStudentSelection = (studentId: number) => {
@@ -697,32 +660,32 @@ export function PaymentManagement() {
       prev.includes(studentId)
         ? prev.filter(id => id !== studentId)
         : [...prev, studentId]
-    )
+    );
   }
 
   const selectAllFilteredStudents = () => {
-    setSelectedStudents(filteredStudents.map(student => student.id))
+    setSelectedStudents(filteredStudents.map(student => student.id));
   }
 
   const clearAllStudents = () => {
-    setSelectedStudents([])
+    setSelectedStudents([]);
   }
 
   const getStatusIcon = (status: PaymentStatus) => {
     switch (status) {
       case 'completed': 
       case 'paid': 
-        return <CheckCircle className="h-4 w-4 text-green-600" />
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'pending': 
-        return <Clock className="h-4 w-4 text-yellow-600" />
+        return <Clock className="h-4 w-4 text-yellow-600" />;
       case 'processing': 
-        return <Clock className="h-4 w-4 text-blue-600" />
+        return <Clock className="h-4 w-4 text-blue-600" />;
       case 'reviewed':
-        return <CheckCircle className="h-4 w-4 text-purple-600" />
+        return <CheckCircle className="h-4 w-4 text-purple-600" />;
       case 'failed': 
-        return <XCircle className="h-4 w-4 text-red-600" />
+        return <XCircle className="h-4 w-4 text-red-600" />;
       default: 
-        return <Clock className="h-4 w-4 text-gray-600" />
+        return <Clock className="h-4 w-4 text-gray-600" />;
     }
   }
 
@@ -730,32 +693,30 @@ export function PaymentManagement() {
     switch (status) {
       case 'completed': 
       case 'paid': 
-        return 'bg-green-100 text-green-800 border-green-200'
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'pending': 
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'processing': 
-        return 'bg-blue-100 text-blue-800 border-blue-200'
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'reviewed':
-        return 'bg-purple-100 text-purple-800 border-purple-200'
+        return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'failed': 
-        return 'bg-red-100 text-red-800 border-red-200'
+        return 'bg-red-100 text-red-800 border-red-200';
       default: 
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" asChild className="gap-2">
             <a href="/admin">
               <ArrowLeft className="h-4 w-4" />
               Back to Dashboard
             </a>
           </Button>
-
-          
         </div>
          
         <div>
@@ -763,28 +724,24 @@ export function PaymentManagement() {
           <p className="text-muted-foreground">
             View and manage all student payments as Adviser
           </p>
-          
         </div>
-                <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2">
           <UserCog className="h-5 w-5 text-blue-600" />
           <span className="text-sm font-medium text-blue-600">Adviser Mode</span>
         </div>
-
-     
       </div>
-   <div className="flex items-center gap-2">
-         
-      
-          <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Payment
-          </Button>
-              <Button variant="outline" size="sm" className="gap-2" onClick={fetchData}>
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-        </div>
-     
+
+      <div className="flex items-center gap-2">
+        <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          New Payment
+        </Button>
+        <Button variant="outline" size="sm" className="gap-2" onClick={fetchData} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
 
       {/* Payments Table */}
       <Card>
@@ -934,12 +891,22 @@ export function PaymentManagement() {
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
+              <Label htmlFor="description">Title</Label>
+              <Input
                 id="description"
-                placeholder="Payment description (e.g., Tuition Fee for January 2024)"
+                placeholder="Payment title (e.g., Tuition Fee for January 2024)"
                 value={newPayment.description}
                 onChange={(e) => setNewPayment({...newPayment, description: e.target.value})}
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="desc">Description</Label>
+              <Textarea
+                id="desc"
+                placeholder="Detailed payment description..."
+                value={newPayment.desc}
+                onChange={(e) => setNewPayment({...newPayment, desc: e.target.value})}
                 rows={3}
               />
             </div>
@@ -947,9 +914,9 @@ export function PaymentManagement() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => {
-              setIsCreateModalOpen(false)
-              setSelectedGrade("all")
-              setSelectedSection("all")
+              setIsCreateModalOpen(false);
+              setSelectedGrade("all");
+              setSelectedSection("all");
             }}>
               Cancel
             </Button>
@@ -972,14 +939,15 @@ export function PaymentManagement() {
               View and manage payment status as Adviser
             </DialogDescription>
           </DialogHeader>
+
           
           {selectedPayment && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Student</Label>
-                  <p className="font-medium">{selectedPayment.student.student_name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedPayment.student.student_id}</p>
+                  <p className="font-medium">{selectedPayment.student_name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedPayment.student_code}</p>
                 </div>
                 
                 <div>
@@ -991,7 +959,7 @@ export function PaymentManagement() {
 
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Payment Method</Label>
-                  <p>{selectedPayment.payment_method.method_name}</p>
+                  <p>{selectedPayment.method_name}</p>
                 </div>
 
                 <div>
@@ -1007,9 +975,26 @@ export function PaymentManagement() {
                 </div>
 
                 <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Reference</Label>
+                  <Label className="text-sm font-medium text-muted-foreground">Reference Number</Label>
                   <p>{selectedPayment.reference_number || 'Not provided'}</p>
                 </div>
+
+                {selectedPayment.reference_file && (
+                  <div className="col-span-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Reference File</Label>
+                    <div className="mt-1">
+                      <a 
+                        href={selectedPayment.reference_file} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 underline"
+                      >
+                        <Paperclip className="h-4 w-4" />
+                        View Uploaded File
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 {selectedPayment.description && (
                   <div className="col-span-2">
