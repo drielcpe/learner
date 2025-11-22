@@ -8,6 +8,7 @@ const emailSchema = z.string()
   .optional()
   .default("")
 
+// Make sure this is named studentSchema (not Student)
 export const studentSchema = z.object({
   id: z.union([z.number(), z.string()]),
   student_id: z.string(),
@@ -20,7 +21,7 @@ export const studentSchema = z.object({
   address: z.string().optional().default(""),
   birth_date: z.string().nullable().optional().default(null),
   qr_code: z.string().nullable().optional(),
-  status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "TRANSFERRED"]).default("ACTIVE"),
+  status: z.enum(["ACTIVE", "INACTIVE", "GRADUATED", "TRANSFERRED", "DELETED"]).default("ACTIVE"),
   created_at: z.string(),
   updated_at: z.string(),
   enrollment_date: z.string().optional(),

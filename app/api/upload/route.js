@@ -1,67 +1,59 @@
-import { writeFile, mkdir } from 'fs/promises';
 import { NextResponse } from 'next/server';
-import path from 'path';
+import { query } from '@/lib/db';
 
 export async function POST(request) {
   try {
     const formData = await request.formData();
-    const file = formData.get('file');
-    
-    if (!file) {
-      return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 });
+    const file = formData.get('qrCode');
+    const methodId = formData.get('methodId');
+
+    if (!file || !methodId) {
+      return NextResponse.json(
+        { success: false, error: 'File and method ID are required' },
+        { status: 400 }
+      );
     }
 
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Invalid file type. Only JPEG, PNG, and PDF files are allowed.' 
-      }, { status: 400 });
+    if (!file.type.startsWith('image/')) {
+      return NextResponse.json(
+        { success: false, error: 'Only image files are allowed' },
+        { status: 400 }
+      );
     }
 
-    // Validate file size (5MB limit)
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'File too large. Maximum size is 5MB.' 
-      }, { status: 400 });
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json(
+        { success: false, error: 'File size must be less than 5MB' },
+        { status: 400 }
+      );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    try {
-      await mkdir(uploadsDir, { recursive: true });
-    } catch (err) {
-      // Directory already exists
-    }
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const extension = path.extname(file.name);
-    const filename = `ref_${timestamp}${extension}`;
-    const filepath = path.join(uploadsDir, filename);
-
-    // Convert file to buffer and save
+    // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filepath, buffer);
 
-    // Return the public URL path
-    const publicPath = `/uploads/${filename}`;
-    
-    return NextResponse.json({ 
-      success: true, 
-      filepath: publicPath,
-      filename: filename
+    // Update database with file data using the NEW column names
+    await query(
+      `UPDATE payment_methods 
+       SET qr_code_data = ?, qr_code_filename = ?, qr_code_mimetype = ?, has_qr = TRUE 
+       WHERE id = ?`,
+      [buffer, file.name, file.type, methodId]
+    );
+
+    console.log('✅ QR code uploaded for method:', methodId);
+
+    return NextResponse.json({
+      success: true,
+      message: 'QR code uploaded successfully'
     });
 
   } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'File upload failed' 
-    }, { status: 500 });
+    console.error('❌ Upload error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
 }

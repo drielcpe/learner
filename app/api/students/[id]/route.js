@@ -166,7 +166,7 @@ export async function GET(request, { params }) {
         status,
         created_at,
         updated_at
-      FROM students WHERE id = ?`,
+      FROM students WHERE status != 'DELETED'`,
       [id]
     );
 
@@ -211,6 +211,62 @@ export async function GET(request, { params }) {
     
   } catch (error) {
     console.error('❌ Student fetch error:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message 
+    }, { status: 500 });
+  }
+}
+// Soft delete approach (recommended)
+// app/api/students/[id]/route.js
+
+export async function DELETE(request, context) {
+  try {
+    // Get the ID from context params
+    const { params } = context;
+    const id = params.id;
+    
+    console.log('🗑️ DELETE request received for student ID:', id);
+    console.log('📋 Full params:', params);
+
+    if (!id) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Student ID is required' 
+      }, { status: 400 });
+    }
+
+    // Check if student exists
+    const [existingStudent] = await query(
+      'SELECT id FROM students WHERE id = ?',
+      [id]
+    );
+
+    if (!existingStudent) {
+      console.log('❌ Student not found with ID:', id);
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Student not found' 
+      }, { status: 404 });
+    }
+
+    console.log('✅ Student found, proceeding with deletion');
+
+    // Soft delete - change status to DELETED
+    const result = await query(
+      'UPDATE students SET status = ? WHERE id = ?',
+      ['DELETED', id]
+    );
+
+    console.log('✅ Student soft deleted successfully, result:', result);
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'Student deleted successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ Student deletion error:', error);
     return NextResponse.json({ 
       success: false, 
       error: error.message 

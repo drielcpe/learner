@@ -26,21 +26,24 @@ async function loadData() {
     }
 
     const result = await response.json()
-    console.log('📊 API Result:', result)
+    console.log('📊 API Result success:', result.success)
+    console.log('📊 API Data length:', result.data?.length || 0)
 
     if (!result.success) {
       throw new Error(result.error || 'Failed to load students')
     }
 
-    // Validate data with schema
+    // Validate data with schema - handle validation errors gracefully
     try {
+      // Use array() method on the schema to validate an array of students
       const validatedData = studentSchema.array().parse(result.data)
       console.log('✅ Data validated successfully, count:', validatedData.length)
       return validatedData
     } catch (validationError) {
       console.warn('⚠️ Data validation warning, using raw data:', validationError)
-      console.warn('📋 Raw data sample:', result.data.slice(0, 2))
-      return result.data
+      console.warn('📋 Raw data sample:', result.data?.slice(0, 2))
+      // Return raw data but ensure it has the basic structure
+      return result.data || []
     }
   } catch (error) {
     console.error('💥 Error loading student data:', error)

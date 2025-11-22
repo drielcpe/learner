@@ -102,7 +102,10 @@ const methodConfig = {
   gcash: { color: "bg-purple-100 text-purple-800 border-purple-200", label: "GCash" },
   cash: { color: "bg-green-100 text-green-800 border-green-200", label: "Cash" },
   bank_transfer: { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Bank Transfer" },
+  // Add fallbacks for any method names that might come from the database
+  'bank transfer': { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Bank Transfer" },
 } as const
+
 
 // DataTablePagination Component
 function DataTablePagination({ table }: { table: any }) {
@@ -254,7 +257,7 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
       accessorKey: "student_code",
       header: "Student ID",
       cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.student_code}</span>
+        <span className="font-mono text-sm">{row.original.student_id}</span>
       ),
     },
     {
@@ -262,9 +265,9 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
       header: "Student Name",
       cell: ({ row }) => (
         <div>
-          <div className="font-medium">{row.original.student_name}</div>
+          <div className="font-medium">{row.original.student_name || 'Unknown Student'}</div>
           <div className="text-xs text-muted-foreground">
-            {row.original.grade} - {row.original.section}
+            {row.original.grade || 'N/A'} - {row.original.section || 'N/A'}
           </div>
         </div>
       ),
@@ -277,35 +280,44 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
     {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ row }) => (
-        <div className="font-medium">₱{row.original.amount.toLocaleString()}</div>
-      ),
-    },
-    {
-      accessorKey: "method_name",
-      header: "Method",
       cell: ({ row }) => {
-        const methodCode = row.original.method_code as keyof typeof methodConfig;
-        const config = methodConfig[methodCode] || { 
-          color: "bg-gray-100 text-gray-800 border-gray-200", 
-          label: row.original.method_name || "Unknown" 
-        };
+        const amount = row.original.amount || 0;
         return (
-          <Badge variant="outline" className={config.color}>
-            {config.label}
-          </Badge>
-        )
+          <div className="font-medium">₱{amount.toLocaleString()}</div>
+        );
       },
     },
+   {
+  accessorKey: "method_name",
+  header: "Method",
+  cell: ({ row }) => {
+    const methodCode = (row.original.method_code || '').toLowerCase();
+    const methodName = row.original.payment_method_name || 'Unknown';
+    
+    // Try to find config by code first, then by name
+    const config = methodConfig[methodCode as keyof typeof methodConfig] || 
+                   methodConfig[methodName.toLowerCase() as keyof typeof methodConfig] || 
+                   { 
+                     color: "bg-gray-100 text-gray-800 border-gray-200", 
+                     label: methodName 
+                   };
+    
+    return (
+      <Badge variant="outline" className={config.color}>
+        {config.label}
+      </Badge>
+    )
+  },
+},
     {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
-        const status = row.original.status
+        const status = row.original.status || 'unknown';
         const config = statusConfig[status] || { 
           color: "bg-gray-100 text-gray-800 border-gray-200", 
           label: status.charAt(0).toUpperCase() + status.slice(1) 
-        }
+        };
         return (
           <Badge variant="outline" className={config.color}>
             {config.label}
@@ -356,7 +368,9 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
 
         // Show actions based on current status
         const getAvailableActions = () => {
-          switch (payment.status) {
+          const status = payment.status || 'pending';
+          
+          switch (status) {
             case 'pending':
               return [
                 { label: "Mark as Reviewed", status: "reviewed" as PaymentStatus, variant: "default" as const },
@@ -500,6 +514,29 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
   )
 }
 
+// Debug Component to see payment data
+function PaymentDebug({ payments }: { payments: Payment[] }) {
+  return (
+    <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
+      <h3 className="font-bold mb-2">🔍 Payment Data Debug:</h3>
+      <div className="text-sm">
+        {payments.length === 0 ? (
+          <p>No payments found</p>
+        ) : (
+          payments.slice(0, 5).map(payment => (
+            <div key={payment.id} className="flex gap-4 mb-1">
+              <span>ID: <strong>{payment.id}</strong></span>
+              <span>Student: {payment.student_name}</span>
+              <span>Amount: ₱{payment.amount}</span>
+              <span>Status: {payment.status}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Main PaymentManagement Component
 export function PaymentManagement() {
   const [payments, setPayments] = useState<Payment[]>([])
@@ -508,6 +545,7 @@ export function PaymentManagement() {
   const [grades, setGrades] = useState<string[]>([])
   const [sections, setSections] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState<number | null>(null)
   
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -537,66 +575,88 @@ export function PaymentManagement() {
   })
 
   // Fetch all data
-  const fetchData = async () => {
-    setLoading(true)
-    try {
-      const [paymentsRes, studentsRes, methodsRes] = await Promise.all([
-        fetch('/api/payments'),
-        fetch('/api/students'),
-        fetch('/api/payment-methods')
-      ]);
-      
-      const paymentsData = await paymentsRes.json();
-      const studentsData = await studentsRes.json();
-      const methodsData = await methodsRes.json();
-      
-      if (paymentsData.success) setPayments(paymentsData.data);
-      if (studentsData.success) {
-        setStudents(studentsData.data);
-        // Extract unique grades and sections
-        const uniqueGrades = Array.from(new Set(studentsData.data.map((s: Student) => s.grade))).sort() as string[];
-        const uniqueSections = Array.from(new Set(studentsData.data.map((s: Student) => s.section))).sort() as string[];
-        setGrades(uniqueGrades);
-        setSections(uniqueSections);
-      }
-      if (methodsData.success) setPaymentMethods(methodsData.data);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      alert('Failed to fetch data. Please check your connection.');
-    } finally {
-      setLoading(false);
+// In your fetchData function, update the payments processing:
+const fetchData = async () => {
+  setLoading(true)
+  try {
+    const [paymentsRes, studentsRes, methodsRes] = await Promise.all([
+      fetch('/api/payments'),
+      fetch('/api/students'),
+      fetch('/api/payment-methods')
+    ]);
+    
+    const paymentsData = await paymentsRes.json();
+    const studentsData = await studentsRes.json();
+    const methodsData = await methodsRes.json();
+    
+    if (paymentsData.success) {
+      // Map the API data to match your frontend interface
+      const mappedPayments = paymentsData.data.map((payment: any) => ({
+        ...payment,
+        // Map payment_method_name to method_name for frontend
+        method_name: payment.payment_method_name,
+        method_code: payment.payment_method_name ? 
+          payment.payment_method_name.toLowerCase().replace(' ', '_') : 'unknown',
+        // Add fallback for null method names
+        payment_method_name: payment.payment_method_name || 'Unknown Method'
+      }));
+      setPayments(mappedPayments);
     }
+    
+    if (studentsData.success) {
+      setStudents(studentsData.data);
+      // Extract unique grades and sections
+      const uniqueGrades = Array.from(new Set(studentsData.data.map((s: Student) => s.grade))).sort() as string[];
+      const uniqueSections = Array.from(new Set(studentsData.data.map((s: Student) => s.section))).sort() as string[];
+      setGrades(uniqueGrades);
+      setSections(uniqueSections);
+    }
+    
+    if (methodsData.success) setPaymentMethods(methodsData.data);
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    alert('Failed to fetch data. Please check your connection.');
+  } finally {
+    setLoading(false);
   }
-
+}
   useEffect(() => {
     fetchData();
   }, []);
 
+  // Create payment function
   const createPayment = async () => {
     try {
       setLoading(true);
+
+      // Make sure all required fields are present
+      const paymentData = {
+        student_ids: selectedStudents,
+        amount: parseFloat(newPayment.amount),
+        description: newPayment.description || newPayment.desc || 'Payment',
+        desc: newPayment.desc,
+        payment_method_id: parseInt(newPayment.payment_method_id),
+        due_date: newPayment.due_date
+      };
+
+      console.log('📤 Sending payment data:', paymentData);
 
       const response = await fetch('/api/payments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          student_ids: selectedStudents,
-          amount: parseFloat(newPayment.amount),
-          description: newPayment.description,
-          desc: newPayment.desc,
-          payment_method_id: parseInt(newPayment.payment_method_id),
-          due_date: newPayment.due_date
-        })
+        body: JSON.stringify(paymentData)
       });
 
       const result = await response.json();
+      console.log('📨 Response:', result);
 
       if (result.success) {
         // Refresh the payments list
         await fetchData();
         setIsCreateModalOpen(false);
+        // Reset form
         setNewPayment({
           student_ids: [],
           payment_method_id: "",
@@ -608,7 +668,7 @@ export function PaymentManagement() {
         setSelectedStudents([]);
         setSelectedGrade("all");
         setSelectedSection("all");
-        alert(result.message);
+        alert(result.message || 'Payments created successfully!');
       } else {
         alert('Failed to create payment: ' + result.error);
       }
@@ -620,11 +680,21 @@ export function PaymentManagement() {
     }
   }
 
+  // Update payment status with proper error handling
   const updatePaymentStatus = async (paymentId: number, newStatus: PaymentStatus) => {
     try {
-      setLoading(true);
+      console.log('🔄 Starting updatePaymentStatus for payment:', paymentId);
       
-      const response = await fetch(`/api/payments/${paymentId}`, {
+      // Validate payment ID
+      if (!paymentId || paymentId === 0 || isNaN(paymentId)) {
+        console.error('❌ Invalid payment ID:', paymentId);
+        alert(`Invalid payment ID: ${paymentId}. Please check the payment data.`);
+        return;
+      }
+      
+      setActionLoading(paymentId);
+      
+      const response = await fetch(`/api/payments/${paymentId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -632,21 +702,32 @@ export function PaymentManagement() {
         body: JSON.stringify({ status: newStatus })
       });
 
+      console.log('📡 Response status:', response.status);
+      
       const result = await response.json();
-
-      if (result.success) {
-        // Refresh the payments list
-        await fetchData();
-        setIsViewModalOpen(false);
-        alert(result.message);
-      } else {
-        alert('Failed to update payment: ' + result.error);
+      console.log('📦 API response:', result);
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `HTTP error! status: ${response.status}`);
       }
+
+      console.log('✅ Payment status updated successfully');
+      
+      // Update local state immediately
+      setPayments(prev => prev.map(payment => 
+        payment.id === paymentId 
+          ? { ...payment, status: newStatus }
+          : payment
+      ));
+      
+      setIsViewModalOpen(false);
+      alert(result.message || 'Payment status updated successfully!');
+      
     } catch (error) {
-      console.error('Error updating payment:', error);
-      alert('Failed to update payment. Please try again.');
+      console.error('💥 Error updating payment:', error);
+      alert(`Failed to update payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setLoading(false);
+      setActionLoading(null);
     }
   }
 
@@ -690,7 +771,8 @@ export function PaymentManagement() {
   }
 
   const getStatusColor = (status: PaymentStatus) => {
-    switch (status) {
+    const actualStatus = status || 'pending';
+    switch (actualStatus) {
       case 'completed': 
       case 'paid': 
         return 'bg-green-100 text-green-800 border-green-200';
@@ -742,6 +824,9 @@ export function PaymentManagement() {
           Refresh
         </Button>
       </div>
+
+      {/* Debug Component - Remove after testing */}
+      <PaymentDebug payments={payments} />
 
       {/* Payments Table */}
       <Card>
@@ -946,26 +1031,26 @@ export function PaymentManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Student</Label>
-                  <p className="font-medium">{selectedPayment.student_name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedPayment.student_code}</p>
+                  <p className="font-medium">{selectedPayment.student_name || 'Unknown Student'}</p>
+                  <p className="text-sm text-muted-foreground">{selectedPayment.student_id}</p>
                 </div>
                 
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Amount</Label>
                   <p className="text-2xl font-bold text-green-600">
-                    ₱{selectedPayment.amount.toLocaleString()}
+                    ₱{(selectedPayment.amount || 0).toLocaleString()}
                   </p>
                 </div>
 
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Payment Method</Label>
-                  <p>{selectedPayment.method_name}</p>
+                  <p>{selectedPayment.method_name || 'Unknown'}</p>
                 </div>
 
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Status</Label>
                   <Badge variant="outline" className={getStatusColor(selectedPayment.status)}>
-                    {selectedPayment.status.charAt(0).toUpperCase() + selectedPayment.status.slice(1)}
+                    {(selectedPayment.status || 'pending').charAt(0).toUpperCase() + (selectedPayment.status || 'pending').slice(1)}
                   </Badge>
                 </div>
 
@@ -1014,29 +1099,29 @@ export function PaymentManagement() {
                         size="sm" 
                         className="gap-1"
                         onClick={() => updatePaymentStatus(selectedPayment.id, 'reviewed')}
-                        disabled={loading}
+                        disabled={actionLoading === selectedPayment.id}
                       >
                         <CheckCircle className="h-3 w-3" />
-                        {loading ? "Updating..." : "Mark as Reviewed"}
+                        {actionLoading === selectedPayment.id ? "Updating..." : "Mark as Reviewed"}
                       </Button>
                       <Button 
                         size="sm" 
                         className="gap-1"
                         onClick={() => updatePaymentStatus(selectedPayment.id, 'paid')}
-                        disabled={loading}
+                        disabled={actionLoading === selectedPayment.id}
                       >
                         <CheckCircle className="h-3 w-3" />
-                        {loading ? "Updating..." : "Mark as Paid"}
+                        {actionLoading === selectedPayment.id ? "Updating..." : "Mark as Paid"}
                       </Button>
                       <Button 
                         variant="destructive" 
                         size="sm" 
                         className="gap-1"
                         onClick={() => updatePaymentStatus(selectedPayment.id, 'failed')}
-                        disabled={loading}
+                        disabled={actionLoading === selectedPayment.id}
                       >
                         <XCircle className="h-3 w-3" />
-                        {loading ? "Updating..." : "Reject"}
+                        {actionLoading === selectedPayment.id ? "Updating..." : "Reject"}
                       </Button>
                     </>
                   )}
@@ -1047,30 +1132,30 @@ export function PaymentManagement() {
                         size="sm" 
                         className="gap-1"
                         onClick={() => updatePaymentStatus(selectedPayment.id, 'paid')}
-                        disabled={loading}
+                        disabled={actionLoading === selectedPayment.id}
                       >
                         <CheckCircle className="h-3 w-3" />
-                        {loading ? "Updating..." : "Mark as Paid"}
+                        {actionLoading === selectedPayment.id ? "Updating..." : "Mark as Paid"}
                       </Button>
                       <Button 
                         variant="outline" 
                         size="sm" 
                         className="gap-1"
                         onClick={() => updatePaymentStatus(selectedPayment.id, 'pending')}
-                        disabled={loading}
+                        disabled={actionLoading === selectedPayment.id}
                       >
                         <Clock className="h-3 w-3" />
-                        {loading ? "Updating..." : "Back to Pending"}
+                        {actionLoading === selectedPayment.id ? "Updating..." : "Back to Pending"}
                       </Button>
                       <Button 
                         variant="destructive" 
                         size="sm" 
                         className="gap-1"
                         onClick={() => updatePaymentStatus(selectedPayment.id, 'failed')}
-                        disabled={loading}
+                        disabled={actionLoading === selectedPayment.id}
                       >
                         <XCircle className="h-3 w-3" />
-                        {loading ? "Updating..." : "Reject"}
+                        {actionLoading === selectedPayment.id ? "Updating..." : "Reject"}
                       </Button>
                     </>
                   )}
@@ -1081,20 +1166,20 @@ export function PaymentManagement() {
                         size="sm" 
                         className="gap-1"
                         onClick={() => updatePaymentStatus(selectedPayment.id, 'reviewed')}
-                        disabled={loading}
+                        disabled={actionLoading === selectedPayment.id}
                       >
                         <CheckCircle className="h-3 w-3" />
-                        {loading ? "Updating..." : "Mark as Reviewed"}
+                        {actionLoading === selectedPayment.id ? "Updating..." : "Mark as Reviewed"}
                       </Button>
                       <Button 
                         variant="outline" 
                         size="sm" 
                         className="gap-1"
                         onClick={() => updatePaymentStatus(selectedPayment.id, 'pending')}
-                        disabled={loading}
+                        disabled={actionLoading === selectedPayment.id}
                       >
                         <Clock className="h-3 w-3" />
-                        {loading ? "Updating..." : "Reset to Pending"}
+                        {actionLoading === selectedPayment.id ? "Updating..." : "Reset to Pending"}
                       </Button>
                     </>
                   )}

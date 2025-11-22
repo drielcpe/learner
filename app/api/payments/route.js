@@ -1,90 +1,88 @@
 import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-export async function GET(request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const studentId = searchParams.get('studentId');
-    const status = searchParams.get('status');
-    const grade = searchParams.get('grade');
-    const section = searchParams.get('section');
+    console.log('🔍 Fetching payments...');
     
-    let sql = `
-      SELECT 
-        p.*,
-        s.student_id as student_code,
-        s.student_name,
-        s.grade,
-        s.section,
-        s.adviser,
-        pm.method_name,
-        pm.method_code
+    const payments = await query(`
+      SELECT p.*, s.student_name, pm.method_name as payment_method_name
       FROM payments p
       LEFT JOIN students s ON p.student_id = s.id
       LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
-    `;
+      ORDER BY p.created_at DESC
+    `);
     
-    let params = [];
-    let conditions = [];
+    console.log('✅ Found payments:', payments.length);
     
-    if (studentId) {
-      conditions.push('p.student_id = ?');
-      params.push(studentId);
-    }
-    
-    if (status && status !== 'all') {
-      conditions.push('p.status = ?');
-      params.push(status);
-    }
-    
-    if (grade && grade !== 'all') {
-      conditions.push('s.grade = ?');
-      params.push(grade);
-    }
-    
-    if (section && section !== 'all') {
-      conditions.push('s.section = ?');
-      params.push(section);
-    }
-    
-    if (conditions.length > 0) {
-      sql += ' WHERE ' + conditions.join(' AND ');
-    }
-    
-    sql += ' ORDER BY p.created_at DESC';
-    
-    const payments = await query(sql, params);
-    return NextResponse.json({ success: true, data: payments });
+    return NextResponse.json({ 
+      success: true, 
+      data: payments 
+    });
   } catch (error) {
-    console.error('Payments fetch error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('❌ Payments fetch error:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message 
+    }, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const { student_ids, amount, description, desc, payment_method_id, due_date } = body;
+    const data = await request.json();
     
-    // Handle multiple student payments
+    console.log('💰 Creating new payment:', data);
+    
+    // Validate required fields
+    if (!data.student_ids || !data.amount || !data.payment_method_id) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Student IDs, amount, and payment method are required' 
+      }, { status: 400 });
+    }
+
     const results = [];
     
-    for (const studentId of student_ids) {
-      const result = await query(
-        `INSERT INTO payments (student_id, payment_method_id, amount, description, \`desc\`, due_date, status) 
-         VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
-        [studentId, payment_method_id, amount, description, desc || null, due_date]
-      );
-      results.push({ studentId, paymentId: result.insertId });
+    // Create a payment for each student
+    for (const studentId of data.student_ids) {
+      const result = await query(`
+        INSERT INTO payments 
+        (student_id, amount, description, payment_method_id, due_date, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        studentId,
+        data.amount,
+        data.description || data.desc || '',
+        data.payment_method_id,
+        data.due_date || null,
+        'pending' // default status
+      ]);
+
+      results.push({
+        id: result.insertId,
+        student_id: studentId,
+        amount: data.amount,
+        description: data.description || data.desc || '',
+        payment_method_id: data.payment_method_id,
+        due_date: data.due_date,
+        status: 'pending'
+      });
     }
+
+    console.log('✅ Payments created:', results.length);
     
     return NextResponse.json({ 
       success: true, 
-      message: `${student_ids.length} payment(s) created successfully`,
-      data: results 
-    });
+      data: results,
+      message: `Created ${results.length} payment(s) successfully`
+    }, { status: 201 });
+    
   } catch (error) {
-    console.error('Payment creation error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error('❌ Payment creation error:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message 
+    }, { status: 500 });
   }
 }

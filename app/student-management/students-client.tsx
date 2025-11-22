@@ -60,7 +60,6 @@ export default function StudentsClient({ data }: StudentsClientProps) {
     try {
       console.log('🔄 Updating student:', studentId, 'with data:', updatedData);
       
-      // Use the alternative endpoint
       const response = await fetch('/api/students/update', {
         method: 'PUT',
         headers: {
@@ -100,6 +99,133 @@ export default function StudentsClient({ data }: StudentsClientProps) {
     }
   }
 
+  // Handle deactivating a student
+  const handleDeactivateStudent = async (studentId: string) => {
+    if (!confirm('Are you sure you want to deactivate this student? They will no longer be able to access the system.')) {
+      return
+    }
+
+    setIsUpdating(true)
+    try {
+      const response = await fetch('/api/students/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: studentId,
+          status: 'INACTIVE'
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to deactivate student')
+      }
+
+      if (result.success) {
+        setStudents(prev => 
+          prev.map(student => 
+            student.id === studentId 
+              ? { ...student, status: 'INACTIVE' }
+              : student
+          )
+        )
+        toast.success('Student deactivated successfully')
+      } else {
+        throw new Error(result.error || 'Failed to deactivate student')
+      }
+    } catch (error) {
+      console.error('Error deactivating student:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to deactivate student')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  // Handle activating a student
+  const handleActivateStudent = async (studentId: string) => {
+    setIsUpdating(true)
+    try {
+      const response = await fetch('/api/students/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: studentId,
+          status: 'ACTIVE'
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to activate student')
+      }
+
+      if (result.success) {
+        setStudents(prev => 
+          prev.map(student => 
+            student.id === studentId 
+              ? { ...student, status: 'ACTIVE' }
+              : student
+          )
+        )
+        toast.success('Student activated successfully')
+      } else {
+        throw new Error(result.error || 'Failed to activate student')
+      }
+    } catch (error) {
+      console.error('Error activating student:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to activate student')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+ // In students-client.tsx - update handleDeleteStudent
+const handleDeleteStudent = async (studentId: string) => {
+  console.log('🗑️ handleDeleteStudent called in parent with ID:', studentId);
+  
+  if (!confirm('Are you sure you want to delete this student? This action will mark the student as deleted.')) {
+    console.log('❌ Delete cancelled by user');
+    return;
+  }
+
+  setIsUpdating(true);
+  try {
+    console.log('📤 Sending DELETE request to:', `/api/students/delete?id=${studentId}`);
+    
+    const response = await fetch(`/api/students/delete?id=${studentId}`, {
+      method: 'DELETE',
+    });
+
+    console.log('📨 DELETE response status:', response.status);
+    
+    const result = await response.json();
+    console.log('📊 DELETE response data:', result);
+
+    if (!response.ok) {
+      throw new Error(result.error || `Failed to delete student: ${response.status}`);
+    }
+
+    if (result.success) {
+      console.log('✅ Student deleted successfully, updating local state');
+      // Remove from local state
+      setStudents(prev => prev.filter(student => student.id !== studentId));
+      toast.success('Student deleted successfully');
+    } else {
+      throw new Error(result.error || 'Failed to delete student');
+    }
+  } catch (error) {
+    console.error('❌ Error deleting student:', error);
+    toast.error(error instanceof Error ? error.message : 'Failed to delete student');
+  } finally {
+    setIsUpdating(false);
+  }
+}
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -118,6 +244,9 @@ export default function StudentsClient({ data }: StudentsClientProps) {
       <StudentsTable 
         data={students}
         onStudentUpdate={handleUpdateStudent}
+        onStudentDeactivate={handleDeactivateStudent}
+        onStudentActivate={handleActivateStudent}
+        onStudentDelete={handleDeleteStudent}
         isUpdating={isUpdating}
         showActions={true}
       />
@@ -125,7 +254,6 @@ export default function StudentsClient({ data }: StudentsClientProps) {
   )
 }
 
-// Create Student Button Component with similar layout to edit form
 // Create Student Button Component with proper modal styling
 function CreateStudentButton({ 
   onCreateStudent, 

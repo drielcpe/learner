@@ -6,8 +6,10 @@ export async function GET() {
     console.log('🔍 Fetching payment methods...');
     
     const paymentMethods = await query(`
-      SELECT * FROM payment_methods 
-      WHERE is_active = 1 
+      SELECT id, method_code, method_name, description, is_active, has_qr,
+             qr_code_filename, account_number, account_name, instructions,
+             created_at, updated_at
+      FROM payment_methods 
       ORDER BY method_name
     `);
     
@@ -31,8 +33,8 @@ export async function POST(request) {
     const data = await request.json();
     
     console.log('📝 Creating new payment method:', data.method_name);
+    console.log('📝 Received data for POST:', JSON.stringify(data, null, 2));
     
-    // Validation
     if (!data.method_code || !data.method_name) {
       return NextResponse.json({ 
         success: false, 
@@ -40,17 +42,17 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    // EXPLICITLY list only the columns that exist in your database
     const result = await query(`
       INSERT INTO payment_methods 
-      (method_code, method_name, description, is_active, has_qr, qr_code_image, account_number, account_name, instructions)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (method_code, method_name, description, is_active, has_qr, account_number, account_name, instructions)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       data.method_code,
       data.method_name,
       data.description || '',
       data.is_active ?? true,
       data.has_qr || false,
-      data.qr_code_image || '',
       data.account_number || '',
       data.account_name || '',
       data.instructions || ''
@@ -62,7 +64,14 @@ export async function POST(request) {
       success: true, 
       data: { 
         id: result.insertId, 
-        ...data,
+        method_code: data.method_code,
+        method_name: data.method_name,
+        description: data.description || '',
+        is_active: data.is_active ?? true,
+        has_qr: data.has_qr || false,
+        account_number: data.account_number || '',
+        account_name: data.account_name || '',
+        instructions: data.instructions || '',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
@@ -84,6 +93,7 @@ export async function PUT(request) {
     const data = await request.json();
     
     console.log('📝 Updating payment method:', id);
+    console.log('📝 Received data for PUT:', JSON.stringify(data, null, 2));
     
     if (!id) {
       return NextResponse.json({ 
@@ -92,10 +102,11 @@ export async function PUT(request) {
       }, { status: 400 });
     }
 
+    // EXPLICITLY list only the columns that exist
     await query(`
       UPDATE payment_methods 
       SET method_code = ?, method_name = ?, description = ?, is_active = ?, 
-          has_qr = ?, qr_code_image = ?, account_number = ?, account_name = ?, 
+          has_qr = ?, account_number = ?, account_name = ?, 
           instructions = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [
@@ -104,7 +115,6 @@ export async function PUT(request) {
       data.description || '',
       data.is_active ?? true,
       data.has_qr || false,
-      data.qr_code_image || '',
       data.account_number || '',
       data.account_name || '',
       data.instructions || '',
@@ -115,7 +125,17 @@ export async function PUT(request) {
     
     return NextResponse.json({ 
       success: true, 
-      data: { id: parseInt(id), ...data }
+      data: { 
+        id: parseInt(id),
+        method_code: data.method_code,
+        method_name: data.method_name,
+        description: data.description || '',
+        is_active: data.is_active ?? true,
+        has_qr: data.has_qr || false,
+        account_number: data.account_number || '',
+        account_name: data.account_name || '',
+        instructions: data.instructions || ''
+      }
     });
     
   } catch (error) {
@@ -141,6 +161,18 @@ export async function DELETE(request) {
       }, { status: 400 });
     }
 
+    // First, set dependent records to NULL
+    try {
+      await query(
+        'UPDATE transactions SET payment_method_id = NULL WHERE payment_method_id = ?',
+        [id]
+      );
+      console.log('✅ Updated dependent transactions');
+    } catch (updateError) {
+      console.log('No dependent transactions or table does not exist');
+    }
+
+    // Then delete the payment method
     await query('DELETE FROM payment_methods WHERE id = ?', [id]);
 
     console.log('✅ Payment method deleted:', id);
