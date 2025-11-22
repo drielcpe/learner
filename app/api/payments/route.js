@@ -6,10 +6,11 @@ export async function GET() {
     console.log('🔍 Fetching payments...');
     
     const payments = await query(`
-      SELECT p.*, s.student_name, pm.method_name as payment_method_name
+      SELECT p.*, s.student_name, s.status, pm.method_name as payment_method_name
       FROM payments p
       LEFT JOIN students s ON p.student_id = s.id
       LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+      WHERE s.status != 'INACTIVE'
       ORDER BY p.created_at DESC
     `);
     

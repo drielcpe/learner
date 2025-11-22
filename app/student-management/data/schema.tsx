@@ -1,4 +1,3 @@
-// app/student-management/data/schema.ts
 import { z } from "zod"
 
 const emailSchema = z.string()
@@ -8,7 +7,6 @@ const emailSchema = z.string()
   .optional()
   .default("")
 
-// Make sure this is named studentSchema (not Student)
 export const studentSchema = z.object({
   id: z.union([z.number(), z.string()]),
   student_id: z.string(),
@@ -16,6 +14,7 @@ export const studentSchema = z.object({
   grade: z.string(),
   section: z.string(),
   adviser: z.string().nullable().optional(),
+  student_type: z.enum(["student", "secretary"]), // Lowercase
   contact_number: z.string().optional().default(""),
   email: emailSchema,
   address: z.string().optional().default(""),
@@ -27,7 +26,6 @@ export const studentSchema = z.object({
   enrollment_date: z.string().optional(),
 })
 
-// Export the TypeScript type
 export type Student = z.infer<typeof studentSchema>
 
 export const createStudentSchema = studentSchema.omit({ 

@@ -35,6 +35,63 @@ interface PaymentMethod {
   updated_at: string;
 }
 
+const dummyPaymentMethods: PaymentMethod[] = [
+  {
+    id: 1,
+    method_code: "gcash",
+    method_name: "GCash",
+    description: "Mobile wallet payment via GCash",
+    is_active: true,
+    has_qr: true,
+    qr_code_filename: "gcash-qr.png",
+    account_number: "0917 123 4567",
+    account_name: "School Name",
+    instructions: "1. Open GCash app\n2. Tap 'Scan QR'\n3. Scan the QR code above\n4. Enter the exact amount\n5. Add reference number in notes\n6. Take screenshot after payment",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z"
+  },
+  {
+    id: 2,
+    method_code: "cash",
+    method_name: "Cash",
+    description: "Physical cash payment",
+    is_active: true,
+    has_qr: false,
+    account_number: "",
+    account_name: "School Cashier",
+    instructions: "Pay directly to the school cashier during office hours (8AM-5PM)",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z"
+  },
+  {
+    id: 3,
+    method_code: "bank_transfer",
+    method_name: "Bank Transfer",
+    description: "Bank transfer or deposit",
+    is_active: true,
+    has_qr: false,
+    account_number: "1234-5678-9012",
+    account_name: "School Name Foundation",
+    instructions: "1. Go to any bank branch\n2. Fill out deposit slip\n3. Use account number above\n4. Write student name as reference\n5. Take photo of deposit slip",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z"
+  },
+  {
+    id: 4,
+    method_code: "paymaya",
+    method_name: "PayMaya",
+    description: "Mobile wallet payment via PayMaya",
+    is_active: false,
+    has_qr: true,
+    qr_code_filename: "paymaya-qr.png",
+    account_number: "0917 987 6543",
+    account_name: "School Name",
+    instructions: "1. Open PayMaya app\n2. Tap 'Scan to Pay'\n3. Scan the QR code\n4. Enter payment amount\n5. Add student name in description",
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z"
+  }
+]
+
 const validatePaymentMethod = (data: Partial<PaymentMethod>): string[] => {
   const errors: string[] = [];
   
@@ -66,6 +123,7 @@ export function PaymentMethodsConfig() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [useDummyData, setUseDummyData] = useState(false)
 
   useEffect(() => {
     fetchPaymentMethods()
@@ -88,6 +146,7 @@ export function PaymentMethodsConfig() {
     try {
       setLoading(true)
       setError(null)
+      setUseDummyData(false)
       
       const response = await fetch('/api/payment-methods')
       
@@ -104,8 +163,10 @@ export function PaymentMethodsConfig() {
       setMethods(result.data || [])
       
     } catch (error) {
-      console.error('Failed to fetch payment methods:', error)
-      setError('Failed to load payment methods from API.')
+      console.log('API not available, using dummy data:', error)
+      setError('Failed to load payment methods from API. Using demo data.')
+      setUseDummyData(true)
+      setMethods(dummyPaymentMethods)
     } finally {
       setLoading(false)
     }
@@ -126,27 +187,162 @@ export function PaymentMethodsConfig() {
     setIsDeleteModalOpen(true)
   }
 
+ const saveMethod = async (methodData: Partial<PaymentMethod>) => {
+  try {
+    setSaving(true)
+    
+    const validationErrors = validatePaymentMethod(methodData)
+    if (validationErrors.length > 0) {
+      alert(`Validation errors:\n${validationErrors.join('\n')}`)
+      return
+    }
+
+    if (useDummyData) {
+      const isCreating = !editingMethod
+      
+      if (isCreating) {
+        const newMethod: PaymentMethod = {
+          id: methods.length > 0 ? Math.max(...methods.map(m => m.id)) + 1 : 1,
+          method_code: methodData.method_code || "",
+          method_name: methodData.method_name || "",
+          description: methodData.description || "",
+          is_active: methodData.is_active ?? true,
+          has_qr: methodData.has_qr || false,
+          account_number: methodData.account_number || "",
+          account_name: methodData.account_name || "",
+          instructions: methodData.instructions || "",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        setMethods(prev => [...prev, newMethod])
+      } else if (editingMethod) {
+        setMethods(prev => prev.map(m => 
+          m.id === editingMethod.id 
+            ? { 
+                ...m, 
+                // Only update the fields that are in the form
+                method_code: methodData.method_code || m.method_code,
+                method_name: methodData.method_name || m.method_name,
+                description: methodData.description || m.description,
+                has_qr: methodData.has_qr ?? m.has_qr,
+                account_number: methodData.account_number || m.account_number,
+                account_name: methodData.account_name || m.account_name,
+                instructions: methodData.instructions || m.instructions,
+                is_active: methodData.is_active ?? m.is_active,
+                updated_at: new Date().toISOString() 
+              }
+            : m
+        ))
+      }
+    } else {
+      const isCreating = !editingMethod
+      const url = isCreating 
+        ? '/api/payment-methods'
+        : `/api/payment-methods?id=${editingMethod?.id}`
+      
+      if (isCreating) {
+        // For new methods, send all form data
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            method_code: methodData.method_code,
+            method_name: methodData.method_name,
+            description: methodData.description,
+            has_qr: methodData.has_qr,
+            account_number: methodData.account_number,
+            account_name: methodData.account_name,
+            instructions: methodData.instructions,
+            is_active: methodData.is_active ?? true
+          })
+        })
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to create payment method')
+        }
+      } else {
+        // For updates, only send the fields that should be updated
+        // Don't send QR-related fields as they should be handled separately
+        const updateData = {
+          method_code: methodData.method_code,
+          method_name: methodData.method_name,
+          description: methodData.description,
+          has_qr: methodData.has_qr,
+          account_number: methodData.account_number,
+          account_name: methodData.account_name,
+          instructions: methodData.instructions,
+          is_active: methodData.is_active
+        }
+        
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData)
+        })
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to update payment method')
+        }
+      }
+      
+      await fetchPaymentMethods()
+    }
+    
+    setIsCreateModalOpen(false)
+    setIsEditModalOpen(false)
+    setEditingMethod(null)
+    
+    alert(`Payment method ${!editingMethod ? 'created' : 'updated'} successfully!`)
+    
+  } catch (error) {
+    console.error('Error saving payment method:', error)
+    alert(`Failed to save payment method: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  } finally {
+    setSaving(false)
+  }
+}
   const deleteMethod = async () => {
     if (!methodToDelete) return
     
     try {
       setSaving(true)
       
-      const response = await fetch(`/api/payment-methods?id=${methodToDelete.id}`, {
-        method: 'DELETE'
-      })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (useDummyData) {
+        setMethods(prev => prev.filter(m => m.id !== methodToDelete.id))
+      } else {
+        const response = await fetch(`/api/payment-methods?id=${methodToDelete.id}`, {
+          method: 'DELETE'
+        })
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const result = await response.json()
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to delete payment method')
+        }
+        
+        await fetchPaymentMethods()
       }
       
-      const result = await response.json()
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to delete payment method')
-      }
-      
-      await fetchPaymentMethods()
       setIsDeleteModalOpen(false)
       setMethodToDelete(null)
       alert('Payment method deleted successfully!')
@@ -154,69 +350,6 @@ export function PaymentMethodsConfig() {
     } catch (error) {
       console.error('Error deleting payment method:', error)
       alert(`Failed to delete payment method: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const saveMethod = async (methodData: Partial<PaymentMethod>) => {
-    try {
-      setSaving(true)
-      
-      const validationErrors = validatePaymentMethod(methodData)
-      if (validationErrors.length > 0) {
-        alert(`Validation errors:\n${validationErrors.join('\n')}`)
-        return
-      }
-
-      const isCreating = !editingMethod
-      const url = isCreating 
-        ? '/api/payment-methods'
-        : `/api/payment-methods?id=${editingMethod?.id}`
-      
-      // EXPLICITLY define only the fields that exist in the database
-      const cleanData = {
-        method_code: methodData.method_code || '',
-        method_name: methodData.method_name || '',
-        description: methodData.description || '',
-        is_active: methodData.is_active ?? true,
-        has_qr: methodData.has_qr || false,
-        account_number: methodData.account_number || '',
-        account_name: methodData.account_name || '',
-        instructions: methodData.instructions || ''
-      }
-      
-      console.log('Sending clean data to API:', cleanData)
-      
-      const response = await fetch(url, {
-        method: isCreating ? 'POST' : 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(cleanData)
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
-      }
-      
-      const result = await response.json()
-      
-      if (!result.success) {
-        throw new Error(result.error || `Failed to ${isCreating ? 'create' : 'update'} payment method`)
-      }
-      
-      await fetchPaymentMethods()
-      setIsCreateModalOpen(false)
-      setIsEditModalOpen(false)
-      setEditingMethod(null)
-      
-      alert(`Payment method ${!editingMethod ? 'created' : 'updated'} successfully!`)
-      
-    } catch (error) {
-      console.error('Error saving payment method:', error)
-      alert(`Failed to save payment method: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setSaving(false)
     }
@@ -236,8 +369,7 @@ export function PaymentMethodsConfig() {
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Upload failed: ${errorText}`)
+        throw new Error('Upload failed')
       }
 
       const result = await response.json()
@@ -246,25 +378,52 @@ export function PaymentMethodsConfig() {
         alert('QR code uploaded successfully!')
         await fetchPaymentMethods()
       } else {
-        throw new Error(result.error || 'Upload failed')
+        throw new Error(result.error)
       }
     } catch (error) {
       console.error('Upload error:', error)
-      alert(`Failed to upload QR code: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      alert('Failed to upload QR code. Please try again.')
     } finally {
       setUploading(false)
     }
   }
 
-  const deleteQrCode = async (methodId: number) => {
-    try {
+const deleteQrCode = async (methodId: number) => {
+  try {
+    if (useDummyData) {
+      setMethods(prev => prev.map(method =>
+        method.id === methodId
+          ? { ...method, has_qr: false, qr_code_filename: undefined }
+          : method
+      ))
+      alert('QR code removed successfully!')
+    } else {
+      // First, get the current method data to preserve other fields
+      const currentMethod = methods.find(m => m.id === methodId);
+      if (!currentMethod) {
+        throw new Error('Payment method not found');
+      }
+
+      // Update the payment method - only modify QR-related fields
       const response = await fetch(`/api/payment-methods?id=${methodId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          has_qr: false
+          // Preserve all existing fields
+          method_code: currentMethod.method_code,
+          method_name: currentMethod.method_name,
+          description: currentMethod.description,
+          is_active: currentMethod.is_active,
+          has_qr: false, // Only change this
+          account_number: currentMethod.account_number,
+          account_name: currentMethod.account_name,
+          instructions: currentMethod.instructions,
+          // Clear QR data
+          qr_code_data: null,
+          qr_code_filename: null,
+          qr_code_mimetype: null
         })
       })
 
@@ -276,31 +435,33 @@ export function PaymentMethodsConfig() {
 
       alert('QR code removed successfully!')
       await fetchPaymentMethods()
-    } catch (error) {
-      console.error('Delete QR error:', error)
-      alert(`Failed to remove QR code: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
+  } catch (error) {
+    console.error('Delete QR error:', error)
+    alert(`Failed to remove QR code: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+}
 
-  const toggleMethodStatus = async (methodId: number, isActive: boolean) => {
-    try {
-      const method = methods.find(m => m.id === methodId)
-      if (!method) return
+const toggleMethodStatus = async (methodId: number, isActive: boolean) => {
+  try {
+    const method = methods.find(m => m.id === methodId)
+    if (!method) return
 
+    if (useDummyData) {
+      setMethods(prev => prev.map(m =>
+        m.id === methodId
+          ? { ...m, is_active: !isActive, updated_at: new Date().toISOString() }
+          : m
+      ))
+    } else {
+      // Only send the is_active field for status toggle
       const response = await fetch(`/api/payment-methods?id=${methodId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          method_code: method.method_code,
-          method_name: method.method_name,
-          description: method.description,
-          is_active: !isActive,
-          has_qr: method.has_qr,
-          account_number: method.account_number,
-          account_name: method.account_name,
-          instructions: method.instructions
+          is_active: !isActive 
         })
       })
       
@@ -315,12 +476,14 @@ export function PaymentMethodsConfig() {
       }
       
       await fetchPaymentMethods()
-      alert(`Payment method ${!isActive ? 'activated' : 'deactivated'} successfully!`)
-    } catch (error) {
-      console.error('Error updating method status:', error)
-      alert(`Failed to update payment method status: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
+    
+    alert(`Payment method ${!isActive ? 'activated' : 'deactivated'} successfully!`)
+  } catch (error) {
+    console.error('Error updating method status:', error)
+    alert(`Failed to update payment method status: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+}
 
   const getMethodIcon = (methodCode: string) => {
     switch (methodCode) {
@@ -366,6 +529,14 @@ export function PaymentMethodsConfig() {
               Retry
             </Button>
           </div>
+        </div>
+      )}
+
+      {useDummyData && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+          <p className="text-blue-800 text-sm">
+            💡 Using demo data. Connect to your database to manage real payment methods.
+          </p>
         </div>
       )}
 
@@ -417,64 +588,68 @@ export function PaymentMethodsConfig() {
                 </div>
               )}
 
-              {/* QR Code Section */}
-              <div className="space-y-3">
-                <Label className="text-sm">QR Code</Label>
-                
-                {method.has_qr && method.qr_code_filename ? (
-                  <div className="space-y-2">
-                    <div className="bg-white p-3 rounded border flex flex-col items-center">
-                      <img 
-                        src={`/api/payment-methods/${method.id}/qr`}
-                        alt={`${method.method_name} QR Code`}
-                        className="w-32 h-32 object-contain border"
-                        onError={(e) => {
-                          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='8' fill='%239ca3af'%3EQR Code%3C/text%3E%3C/svg%3E"
-                        }}
-                      />
-                      <p className="text-xs text-muted-foreground mt-2 truncate max-w-full">
-                        {method.qr_code_filename}
-                      </p>
+              {/* QR Code Section - Always show if has_qr is true */}
+              {method.has_qr && (
+                <div className="space-y-3">
+                  <Label className="text-sm">QR Code</Label>
+                  
+                  {method.qr_code_filename ? (
+                    <div className="space-y-2">
+                      <div className="bg-white p-3 rounded border flex flex-col items-center">
+                        <img 
+                          src={`/api/payment-methods/${method.id}/qr`}
+                          alt={`${method.method_name} QR Code`}
+                          className="w-32 h-32 object-contain border"
+                          onError={(e) => {
+                            // Fallback if image fails to load
+                            e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='monospace' font-size='8' fill='%239ca3af'%3EQR Code%3C/text%3E%3C/svg%3E"
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground mt-2 truncate max-w-full">
+                          {method.qr_code_filename}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 gap-1"
+                          onClick={() => window.open(`/api/payment-methods/${method.id}/qr`, '_blank')}
+                        >
+                          <Download className="h-3 w-3" />
+                          Download
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => deleteQrCode(method.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 gap-1"
-                        onClick={() => window.open(`/api/payment-methods/${method.id}/qr`, '_blank')}
-                      >
-                        <Download className="h-3 w-3" />
-                        Download
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => deleteQrCode(method.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
+                  ) : (
+                    <QrCodeUpload 
+                      methodId={method.id}
+                      onUpload={handleFileUpload}
+                      uploading={uploading}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Add QR Code Button for methods without QR */}
+              {!method.has_qr && (
+                <div className="space-y-2">
+                  <Label className="text-sm">QR Code</Label>
                   <QrCodeUpload 
                     methodId={method.id}
                     onUpload={handleFileUpload}
                     uploading={uploading}
                   />
-                )}
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label htmlFor={`active-${method.id}`} className="text-sm">
-                  Active
-                </Label>
-                <Switch
-                  id={`active-${method.id}`}
-                  checked={method.is_active}
-                  onCheckedChange={() => toggleMethodStatus(method.id, method.is_active)}
-                />
-              </div>
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <Button 
@@ -503,12 +678,6 @@ export function PaymentMethodsConfig() {
       {filteredMethods.length === 0 && searchTerm && (
         <div className="text-center py-8">
           <p className="text-muted-foreground">No payment methods found matching "{searchTerm}"</p>
-        </div>
-      )}
-
-      {filteredMethods.length === 0 && !searchTerm && (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">No payment methods found. Create your first payment method!</p>
         </div>
       )}
 

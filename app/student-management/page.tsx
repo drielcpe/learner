@@ -1,4 +1,3 @@
-// app/student-management/page.tsx
 import { studentSchema } from "./data/schema"
 import StudentsClient from "./students-client"
 import { Button } from "@/components/ui/button"
@@ -8,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 async function loadData() {
   try {
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    console.log('🔄 Loading students from:', `${baseUrl}/api/students`)
+    console.log('Loading students from API...')
     
     const response = await fetch(`${baseUrl}/api/students`, {
       cache: 'no-store',
@@ -17,36 +16,62 @@ async function loadData() {
       },
     })
 
-    console.log('📨 Response status:', response.status)
+    console.log('Response status:', response.status)
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('❌ API Error:', errorText)
-      throw new Error(`Failed to fetch students: ${response.status} ${response.statusText}`)
+      console.log('API Error:', errorText)
+      throw new Error(`Failed to fetch students: ${response.status}`)
     }
 
     const result = await response.json()
-    console.log('📊 API Result success:', result.success)
-    console.log('📊 API Data length:', result.data?.length || 0)
+    console.log('API data count:', result.data?.length || 0)
 
     if (!result.success) {
       throw new Error(result.error || 'Failed to load students')
     }
 
-    // Validate data with schema - handle validation errors gracefully
-    try {
-      // Use array() method on the schema to validate an array of students
-      const validatedData = studentSchema.array().parse(result.data)
-      console.log('✅ Data validated successfully, count:', validatedData.length)
-      return validatedData
-    } catch (validationError) {
-      console.warn('⚠️ Data validation warning, using raw data:', validationError)
-      console.warn('📋 Raw data sample:', result.data?.slice(0, 2))
-      // Return raw data but ensure it has the basic structure
-      return result.data || []
+    if (!Array.isArray(result.data)) {
+      console.log('Invalid data format: expected array')
+      return []
     }
+
+    // Transform data with proper student_type handling
+    const validatedData = result.data.map((item: any) => {
+      // Handle student_type - ensure it's always valid
+      let studentType: 'student' | 'secretary' = 'student'
+      
+      if (item.student_type === 'secretary') {
+        studentType = 'secretary'
+      } else if (item.student_type && ['student', 'secretary'].includes(item.student_type.toLowerCase())) {
+        studentType = item.student_type.toLowerCase() as 'student' | 'secretary'
+      }
+
+      return {
+        id: item.id || 0,
+        student_id: item.student_id || '',
+        student_name: item.student_name || '',
+        student_type: studentType,
+        grade: item.grade || '',
+        section: item.section || '',
+        adviser: item.adviser || null,
+        contact_number: item.contact_number || '',
+        email: item.email || '',
+        address: item.address || '',
+        birth_date: item.birth_date || null,
+        qr_code: item.qr_code || null,
+        status: item.status || 'ACTIVE',
+        created_at: item.created_at || new Date().toISOString(),
+        updated_at: item.updated_at || new Date().toISOString(),
+        enrollment_date: item.enrollment_date || null,
+      }
+    })
+
+    console.log('Data processed successfully, count:', validatedData.length)
+    return validatedData
+    
   } catch (error) {
-    console.error('💥 Error loading student data:', error)
+    console.log('Error loading student data')
     return []
   }
 }

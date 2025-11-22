@@ -36,7 +36,7 @@ export async function PUT(request) {
 
     const allowedFields = [
       'student_name', 'grade', 'section', 'adviser', 
-      'contact_number', 'email', 'address', 'birth_date', 'status'
+      'contact_number', 'email', 'address', 'birth_date', 'status','student_type'
     ];
 
     allowedFields.forEach(field => {

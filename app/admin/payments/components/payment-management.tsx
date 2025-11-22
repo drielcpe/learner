@@ -581,7 +581,7 @@ const fetchData = async () => {
   try {
     const [paymentsRes, studentsRes, methodsRes] = await Promise.all([
       fetch('/api/payments'),
-      fetch('/api/students'),
+      fetch('/api/students/dropdown'),
       fetch('/api/payment-methods')
     ]);
     

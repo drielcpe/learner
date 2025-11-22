@@ -5,11 +5,12 @@ import { useState } from "react"
 import { StudentsTable } from "./components/students-table"
 import { Student } from "./data/schema"
 import { Button } from "@/components/ui/button"
-import { Plus, X, Save } from "lucide-react"
+import { Plus, X, Save, User, Users } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 
 interface StudentsClientProps {
   data: Student[]
@@ -23,7 +24,9 @@ export default function StudentsClient({ data }: StudentsClientProps) {
   const handleCreateStudent = async (studentData: Omit<Student, 'id' | 'created_at' | 'updated_at' | 'enrollment_date' | 'qr_code'>) => {
     setIsUpdating(true)
     try {
-      const response = await fetch('/api/students', {
+      console.log('📤 Creating student with data:', studentData)
+      
+      const response = await fetch('/api/students/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -32,6 +35,7 @@ export default function StudentsClient({ data }: StudentsClientProps) {
       })
 
       const result = await response.json()
+      console.log('📨 Create student response:', result)
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to create student')
@@ -185,47 +189,48 @@ export default function StudentsClient({ data }: StudentsClientProps) {
     }
   }
 
- // In students-client.tsx - update handleDeleteStudent
-const handleDeleteStudent = async (studentId: string) => {
-  console.log('🗑️ handleDeleteStudent called in parent with ID:', studentId);
-  
-  if (!confirm('Are you sure you want to delete this student? This action will mark the student as deleted.')) {
-    console.log('❌ Delete cancelled by user');
-    return;
-  }
-
-  setIsUpdating(true);
-  try {
-    console.log('📤 Sending DELETE request to:', `/api/students/delete?id=${studentId}`);
+  // Handle deleting a student
+  const handleDeleteStudent = async (studentId: string) => {
+    console.log('🗑️ handleDeleteStudent called in parent with ID:', studentId);
     
-    const response = await fetch(`/api/students/delete?id=${studentId}`, {
-      method: 'DELETE',
-    });
-
-    console.log('📨 DELETE response status:', response.status);
-    
-    const result = await response.json();
-    console.log('📊 DELETE response data:', result);
-
-    if (!response.ok) {
-      throw new Error(result.error || `Failed to delete student: ${response.status}`);
+    if (!confirm('Are you sure you want to delete this student? This action will mark the student as deleted.')) {
+      console.log('❌ Delete cancelled by user');
+      return;
     }
 
-    if (result.success) {
-      console.log('✅ Student deleted successfully, updating local state');
-      // Remove from local state
-      setStudents(prev => prev.filter(student => student.id !== studentId));
-      toast.success('Student deleted successfully');
-    } else {
-      throw new Error(result.error || 'Failed to delete student');
+    setIsUpdating(true);
+    try {
+      console.log('📤 Sending DELETE request to:', `/api/students/delete?id=${studentId}`);
+      
+      const response = await fetch(`/api/students/delete?id=${studentId}`, {
+        method: 'DELETE',
+      });
+
+      console.log('📨 DELETE response status:', response.status);
+      
+      const result = await response.json();
+      console.log('📊 DELETE response data:', result);
+
+      if (!response.ok) {
+        throw new Error(result.error || `Failed to delete student: ${response.status}`);
+      }
+
+      if (result.success) {
+        console.log('✅ Student deleted successfully, updating local state');
+        // Remove from local state
+        setStudents(prev => prev.filter(student => student.id !== studentId));
+        toast.success('Student deleted successfully');
+      } else {
+        throw new Error(result.error || 'Failed to delete student');
+      }
+    } catch (error) {
+      console.error('❌ Error deleting student:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to delete student');
+    } finally {
+      setIsUpdating(false);
     }
-  } catch (error) {
-    console.error('❌ Error deleting student:', error);
-    toast.error(error instanceof Error ? error.message : 'Failed to delete student');
-  } finally {
-    setIsUpdating(false);
   }
-}
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -266,6 +271,7 @@ function CreateStudentButton({
   const [formData, setFormData] = useState({
     student_id: '',
     student_name: '',
+    student_type: 'student' as 'student' | 'secretary',
     grade: '7',
     section: '',
     adviser: '',
@@ -277,6 +283,16 @@ function CreateStudentButton({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate required fields
+    if (!formData.student_id || !formData.student_name || !formData.section) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+
+    // Add debug log to see what's being submitted
+    console.log('🎯 Submitting student data:', formData)
+    
     try {
       await onCreateStudent(formData)
       setIsDialogOpen(false)
@@ -284,6 +300,7 @@ function CreateStudentButton({
       setFormData({
         student_id: '',
         student_name: '',
+        student_type: 'student',
         grade: '7',
         section: '',
         adviser: '',
@@ -292,12 +309,15 @@ function CreateStudentButton({
         address: '',
         birth_date: '',
       })
+      toast.success('Student created successfully')
     } catch (error) {
       // Error is handled in the parent component
+      console.error('Error in CreateStudentButton:', error)
     }
   }
 
   const handleChange = (field: string, value: string) => {
+    console.log(`🔄 Field ${field} changed to:`, value)
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -314,9 +334,9 @@ function CreateStudentButton({
       {/* Create Student Dialog - Proper modal styling */}
       {isDialogOpen && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg border shadow-lg w-full max-w-2xl max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-lg border shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b bg-muted/50">
+            <div className="flex items-center justify-between p-6 border-b bg-muted/50 sticky top-0">
               <div>
                 <h3 className="text-lg font-semibold">Create New Student</h3>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -325,7 +345,7 @@ function CreateStudentButton({
               </div>
               <button 
                 onClick={() => setIsDialogOpen(false)}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none p-1"
                 disabled={isCreating}
               >
                 <X className="h-4 w-4" />
@@ -361,6 +381,53 @@ function CreateStudentButton({
                     required
                     className="mt-1"
                   />
+                </div>
+
+                {/* Student Type Field */}
+                <div>
+                  <Label htmlFor="create_student_type" className="text-sm font-medium">Student Type *</Label>
+                  <Select 
+                    value={formData.student_type} 
+                    onValueChange={(value: 'student' | 'secretary') => handleChange('student_type', value)}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue>
+                        <div className="flex items-center gap-2">
+                          {formData.student_type === 'student' ? (
+                            <>
+                              <User className="h-4 w-4 text-green-600" />
+                              <span>Student</span>
+                            </>
+                          ) : (
+                            <>
+                              <Users className="h-4 w-4 text-blue-600" />
+                              <span>Secretary</span>
+                            </>
+                          )}
+                        </div>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-green-600" />
+                          <span>Student</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="secretary">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-blue-600" />
+                          <span>Secretary</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formData.student_type === 'secretary' 
+                      ? 'Secretaries have additional permissions' 
+                      : 'Regular student account'
+                    }
+                  </p>
                 </div>
 
                 <div>
@@ -405,7 +472,30 @@ function CreateStudentButton({
 
                 {/* Contact Information Section */}
                 <div className="col-span-2 border-t pt-4 mt-2">
-                  <h4 className="font-medium text-sm">Contact Information</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-sm">Contact Information</h4>
+                    {/* Show current selection badge */}
+                    <Badge 
+                      variant="outline" 
+                      className={
+                        formData.student_type === 'secretary' 
+                          ? "bg-blue-50 text-blue-700 border-blue-200" 
+                          : "bg-green-50 text-green-700 border-green-200"
+                      }
+                    >
+                      {formData.student_type === 'secretary' ? (
+                        <div className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          <span>Secretary</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          <span>Student</span>
+                        </div>
+                      )}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div>

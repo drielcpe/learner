@@ -3,12 +3,13 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, X, Save } from "lucide-react"
+import { Plus, X, Save, User, Users } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
 
 interface CreateStudentDialogProps {
   onCreateStudent: (data: any) => Promise<void>
@@ -20,6 +21,7 @@ export function CreateStudentDialog({ onCreateStudent, isCreating }: CreateStude
   const [formData, setFormData] = useState({
     student_id: '',
     student_name: '',
+    student_type: 'student' as 'student' | 'secretary', // Add student_type with default
     grade: '7',
     section: '',
     adviser: '',
@@ -29,36 +31,40 @@ export function CreateStudentDialog({ onCreateStudent, isCreating }: CreateStude
     birth_date: '',
   })
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    // Validate required fields
-    if (!formData.student_id || !formData.student_name || !formData.section) {
-      toast.error('Please fill in all required fields')
-      return
-    }
-
-    try {
-      await onCreateStudent(formData)
-      setIsDialogOpen(false)
-      // Reset form
-      setFormData({
-        student_id: '',
-        student_name: '',
-        grade: '7',
-        section: '',
-        adviser: '',
-        contact_number: '',
-        email: '',
-        address: '',
-        birth_date: '',
-      })
-      toast.success('Student created successfully')
-    } catch (error) {
-      // Error is handled in the parent component
-      console.error('Error in CreateStudentDialog:', error)
-    }
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  
+  // Validate required fields
+  if (!formData.student_id || !formData.student_name || !formData.section) {
+    toast.error('Please fill in all required fields')
+    return
   }
+
+  // DEBUG: Check what's in formData
+  console.log('🎯 Form data being submitted:', formData)
+  console.log('📝 Student type value:', formData.student_type)
+
+  try {
+    await onCreateStudent(formData)
+    setIsDialogOpen(false)
+    // Reset form
+    setFormData({
+      student_id: '',
+      student_name: '',
+      student_type: 'student',
+      grade: '7',
+      section: '',
+      adviser: '',
+      contact_number: '',
+      email: '',
+      address: '',
+      birth_date: '',
+    })
+    toast.success('Student created successfully')
+  } catch (error) {
+    console.error('Error in CreateStudentDialog:', error)
+  }
+}
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -110,6 +116,39 @@ export function CreateStudentDialog({ onCreateStudent, isCreating }: CreateStude
                 />
               </div>
 
+              {/* Student Type Field - ADDED */}
+              <div>
+                <Label htmlFor="create_student_type" className="text-sm font-medium">Student Type *</Label>
+                <Select 
+                  value={formData.student_type} 
+                  onValueChange={(value: 'student' | 'secretary') => handleChange('student_type', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-green-600" />
+                        <span>Student</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="secretary">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-blue-600" />
+                        <span>Secretary</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formData.student_type === 'secretary' 
+                    ? 'Secretaries have additional permissions' 
+                    : 'Regular student account'
+                  }
+                </p>
+              </div>
+
               <div>
                 <Label htmlFor="create_grade" className="text-sm font-medium">Grade *</Label>
                 <Select value={formData.grade} onValueChange={(value) => handleChange('grade', value)}>
@@ -150,7 +189,30 @@ export function CreateStudentDialog({ onCreateStudent, isCreating }: CreateStude
 
               {/* Contact Information Section */}
               <div className="col-span-2 border-t pt-4">
-                <h4 className="font-medium mb-3">Contact Information</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Contact Information</h4>
+                  {/* Show current selection badge */}
+                  <Badge 
+                    variant="outline" 
+                    className={
+                      formData.student_type === 'secretary' 
+                        ? "bg-blue-50 text-blue-700 border-blue-200" 
+                        : "bg-green-50 text-green-700 border-green-200"
+                    }
+                  >
+                    {formData.student_type === 'secretary' ? (
+                      <div className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        <span>Secretary</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        <span>Student</span>
+                      </div>
+                    )}
+                  </Badge>
+                </div>
               </div>
 
               <div>

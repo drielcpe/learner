@@ -1,6 +1,6 @@
-// app/api/students/create/route.js
 import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import QRCode from 'qrcode';
 
 export async function POST(request) {
   try {
@@ -30,14 +30,36 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    // Generate QR code data
+    const qrCodeData = JSON.stringify({
+      student_id: body.student_id,
+      student_name: body.student_name,
+      type: body.student_type || 'student',
+      grade: body.grade,
+      section: body.section
+    });
+
+    console.log('🔗 QR Code data:', qrCodeData);
+
+    // Generate QR code as base64
+    let qrCodeImage = null;
+    try {
+      qrCodeImage = await QRCode.toDataURL(qrCodeData);
+      console.log('✅ QR code generated successfully');
+    } catch (qrError) {
+      console.error('❌ QR code generation failed:', qrError);
+      // Continue without QR code if generation fails
+    }
+
     const result = await query(
       `INSERT INTO students (
-        student_id, student_name, grade, section, adviser, 
-        contact_number, email, address, birth_date, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        student_id, student_name, student_type, grade, section, adviser, 
+        contact_number, email, address, birth_date, status, qr_code
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         body.student_id,
         body.student_name,
+        body.student_type || 'student', // Use provided type or default
         body.grade,
         body.section,
         body.adviser || null,
@@ -45,14 +67,19 @@ export async function POST(request) {
         body.email || null,
         body.address || null,
         body.birth_date || null,
-        body.status || 'ACTIVE'
+        body.status || 'ACTIVE',
+        qrCodeImage // Store QR code
       ]
     );
+
+    console.log('✅ Student inserted with ID:', result.insertId);
 
     const [newStudent] = await query(
       'SELECT * FROM students WHERE id = ?',
       [result.insertId]
     );
+
+    console.log('📋 New student from DB:', newStudent);
 
     const formatDate = (date) => {
       if (!date) return null;
@@ -69,7 +96,10 @@ export async function POST(request) {
       address: newStudent.address || "",
       birth_date: formatDate(newStudent.birth_date),
       enrollment_date: formatDate(newStudent.created_at),
+      qr_code: newStudent.qr_code, // Include the QR code
     };
+
+    console.log('🎯 Formatted student response:', formattedStudent);
 
     return NextResponse.json({ 
       success: true, 

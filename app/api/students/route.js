@@ -14,6 +14,7 @@ export async function GET() {
         student_name,
         grade,
         section,
+        student_type,
         adviser,
         contact_number,
         email,

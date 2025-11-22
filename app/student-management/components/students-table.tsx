@@ -25,7 +25,7 @@ import { DataTablePagination } from "@/app/attendance/components/data-table-pagi
 import { DataTableToolbar } from "@/app/attendance/components/data-table-toolbar"
 import type { Student } from "../data/schema"
 import { Button } from "@/components/ui/button"
-import { Eye, Edit, Mail, Phone, MoreHorizontal, Save, X, UserX, UserCheck, Trash2 } from "lucide-react"
+import { Eye, Edit, Mail, Phone, MoreHorizontal, Save, X, UserX, UserCheck, Trash2, User, Users } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import {
@@ -89,6 +89,29 @@ const columns: ColumnDef<Student>[] = [
     ),
   },
   {
+    accessorKey: "student_type",
+    header: "Type",
+    cell: ({ row }) => (
+      <div className="flex items-center gap-1">
+        {row.original.student_type === 'secretary' ? (
+          <>
+            <Users className="h-3 w-3 text-blue-600" />
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              Secretary
+            </Badge>
+          </>
+        ) : (
+          <>
+            <User className="h-3 w-3 text-green-600" />
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              Student
+            </Badge>
+          </>
+        )}
+      </div>
+    ),
+  },
+  {
     accessorKey: "adviser",
     header: "Adviser",
   },
@@ -130,39 +153,104 @@ const columns: ColumnDef<Student>[] = [
       </div>
     ),
   },
-  {
-    accessorKey: "qr_code",
-    header: "QR Code",
-    cell: ({ row }) => (
-      <div className="flex justify-center">
-        {row.original.qr_code ? (
+{
+  accessorKey: "qr_code",
+  header: "QR Code",
+  cell: ({ row }) => {
+    const [imageError, setImageError] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    // Check if QR code is valid and complete
+    const isValidQrCode = React.useMemo(() => {
+      const qrCode = row.original.qr_code;
+      if (!qrCode) return false;
+      
+      // Check if it's a data URL and seems complete
+      if (qrCode.startsWith('data:image/')) {
+        // A complete QR code Base64 should be longer than 300 characters
+        // Truncated ones will be shorter
+        const isComplete = qrCode.length > 300;
+        console.log(`🔍 QR Code validation:`, {
+          length: qrCode.length,
+          isComplete,
+          preview: qrCode.substring(0, 100) + '...'
+        });
+        return isComplete;
+      }
+      
+      return false;
+    }, [row.original.qr_code]);
+
+    const handleImageClick = () => {
+      if (isValidQrCode && !imageError) {
+        setIsModalOpen(true);
+      } else {
+        console.warn('⚠️ QR code is invalid or truncated, cannot display');
+      }
+    };
+
+    const handleImageError = () => {
+      console.error('❌ Failed to load QR code image');
+      setImageError(true);
+    };
+
+    if (!isValidQrCode || imageError) {
+      return (
+        <div className="flex justify-center">
           <div className="flex flex-col items-center gap-1">
-            <img 
-              src={row.original.qr_code} 
-              alt="QR Code" 
-              className="w-12 h-12 object-contain border rounded hover:scale-110 transition-transform cursor-pointer"
-              onClick={() => {
-                // Open QR code in modal for better view
-                const modal = document.createElement('div');
-                modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-                modal.innerHTML = `
-                  <div class="bg-white p-4 rounded-lg">
-                    <img src="${row.original.qr_code}" alt="QR Code" class="w-64 h-64" />
-                    <p class="text-center mt-2 text-sm">${row.original.student_name}</p>
-                    <button onclick="this.parentElement.parentElement.remove()" class="mt-2 w-full bg-gray-200 hover:bg-gray-300 py-1 rounded">Close</button>
-                  </div>
-                `;
-                document.body.appendChild(modal);
-              }}
-            />
-            <span className="text-xs text-muted-foreground">Click to view</span>
+            <div className="w-12 h-12 border-2 border-dashed border-muted-foreground/25 rounded flex items-center justify-center">
+              <span className="text-xs text-muted-foreground/70">No QR</span>
+            </div>
+            <span className="text-xs text-muted-foreground">Invalid</span>
           </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">No QR</span>
-        )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-1">
+          <img 
+            src={row.original.qr_code} 
+            alt={`QR Code for ${row.original.student_name}`}
+            className="w-12 h-12 object-contain border rounded hover:scale-110 transition-transform cursor-pointer bg-white p-1"
+            onClick={handleImageClick}
+            onError={handleImageError}
+          />
+      
+          {/* QR Code Modal */}
+          {isModalOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg max-w-sm mx-4">
+                <div className="flex justify-between items-center mb-4">
+                
+             
+                </div>
+                <div className="bg-white p-4 rounded border flex justify-center">
+                  <img 
+                    src={row.original.qr_code} 
+                    alt={`QR Code for ${row.original.student_name}`}
+                    className="w-48 h-48"
+                  />
+                </div>
+                <div className="text-center mt-4">
+                  <p className="font-medium">{row.original.student_name}</p>
+                
+                </div>
+                <Button 
+                  className="w-full mt-4"
+                  onClick={() => setIsModalOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    ),
+    );
   },
+},
   {
     id: "actions",
     header: "Actions",
@@ -175,6 +263,7 @@ const columns: ColumnDef<Student>[] = [
       // Edit form state
       const [editForm, setEditForm] = useState({
         student_name: student.student_name,
+        student_type: student.student_type || 'student',
         grade: student.grade,
         section: student.section,
         adviser: student.adviser || "",
@@ -200,6 +289,7 @@ const columns: ColumnDef<Student>[] = [
           // Convert null to undefined to match the Student type
           const updateData = {
             student_name: editForm.student_name,
+            student_type: editForm.student_type,
             grade: editForm.grade,
             section: editForm.section,
             adviser: editForm.adviser || undefined,
@@ -335,6 +425,26 @@ const columns: ColumnDef<Student>[] = [
                     <p>{student.student_name}</p>
                   </div>
                   <div>
+                    <label className="text-sm font-medium text-muted-foreground">Type</label>
+                    <div className="flex items-center gap-1">
+                      {student.student_type === 'secretary' ? (
+                        <>
+                          <Users className="h-4 w-4 text-blue-600" />
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                            Secretary
+                          </Badge>
+                        </>
+                      ) : (
+                        <>
+                          <User className="h-4 w-4 text-green-600" />
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            Student
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div>
                     <label className="text-sm font-medium text-muted-foreground">Grade & Section</label>
                     <p>Grade {student.grade} - {student.section}</p>
                   </div>
@@ -408,6 +518,32 @@ const columns: ColumnDef<Student>[] = [
                     value={editForm.student_name}
                     onChange={(e) => handleFormChange('student_name', e.target.value)}
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="student_type">Student Type</Label>
+                  <Select 
+                    value={editForm.student_type} 
+                    onValueChange={(value) => handleFormChange('student_type', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-green-600" />
+                          <span>Student</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="secretary">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-blue-600" />
+                          <span>Secretary</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
