@@ -38,7 +38,7 @@ const statusConfig = {
   }
 } as const
 
-export const buildSecretaryColumns = (day: DayKey, isEditable: boolean): ColumnDef<Attendance>[] => [
+export const buildAdminColumns = (day: DayKey, isEditable: boolean): ColumnDef<Attendance>[] => [
   {
     accessorKey: "student_id",
     header: "Student ID",
@@ -62,6 +62,13 @@ export const buildSecretaryColumns = (day: DayKey, isEditable: boolean): ColumnD
       </div>
     ),
   },
+  {
+    accessorKey: "adviser",
+    header: "Adviser",
+    cell: ({ row }) => (
+      <span className="text-sm">{row.original.adviser || "-"}</span>
+    ),
+  },
 
   ...PERIOD_KEYS.map((period: PeriodKey): ColumnDef<Attendance> => ({
     id: `${day}_${period}`,
@@ -73,13 +80,37 @@ export const buildSecretaryColumns = (day: DayKey, isEditable: boolean): ColumnD
     cell: ({ row, table }) => {
       const currentStatus = row.original.attendance?.[day]?.[period] as AttendanceStatus | undefined
 
-      const handleStatusChange = (newStatus: AttendanceStatus) => {
-        table.options.meta?.updateAttendance?.(
-          row.index,
+      const handleStatusChange = async (newStatus: AttendanceStatus) => {
+        console.log('🔄 Status change triggered:', {
+          studentId: row.original.id,
+          studentName: row.original.student_name,
           day,
-          period,
+          originalPeriod: period, // Log the original period from PERIOD_KEYS
           newStatus
-        )
+        })
+
+        try {
+          // Check if update function exists
+          if (!table.options.meta?.updateAttendance) {
+            console.error('❌ updateAttendance function not found in table meta')
+            return
+          }
+
+          console.log('📞 Calling updateAttendance...')
+          
+          // Use the period directly from PERIOD_KEYS - it should already be "p1", "p2", etc.
+          // Remove the formatting logic since PERIOD_KEYS should already be correct
+          await table.options.meta.updateAttendance(
+            row.original.id,
+            day,
+            period, // This should be "p1", "p2", "p3", etc. from PERIOD_KEYS
+            newStatus
+          )
+
+          console.log('✅ Status change completed successfully')
+        } catch (error) {
+          console.error('❌ Failed to update attendance:', error)
+        }
       }
 
       // Get the current status config
@@ -88,7 +119,7 @@ export const buildSecretaryColumns = (day: DayKey, isEditable: boolean): ColumnD
       // Get the Icon component for the current status
       const StatusIcon = currentConfig?.icon || MoreHorizontal
 
-      // Status dropdown for secretary
+      // Status dropdown for admin
       return (
         <div className="flex justify-center">
           <DropdownMenu>
@@ -101,6 +132,10 @@ export const buildSecretaryColumns = (day: DayKey, isEditable: boolean): ColumnD
                     ? `${currentConfig.bg} ${currentConfig.border}`
                     : "bg-white"
                 }`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  console.log('🎯 Dropdown trigger clicked for period:', period)
+                }}
               >
                 {currentConfig ? (
                   <>
@@ -117,20 +152,52 @@ export const buildSecretaryColumns = (day: DayKey, isEditable: boolean): ColumnD
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="center">
-              <DropdownMenuItem onClick={() => handleStatusChange("present")}>
+            <DropdownMenuContent align="center" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('✅ Present selected for period:', period)
+                  handleStatusChange("present")
+                }}
+                className="cursor-pointer"
+              >
                 <Check className="h-4 w-4 text-green-600 mr-2" />
                 Present
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange("late")}>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('⏰ Late selected for period:', period)
+                  handleStatusChange("late")
+                }}
+                className="cursor-pointer"
+              >
                 <Clock className="h-4 w-4 text-yellow-600 mr-2" />
                 Late
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange("absent")}>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('❌ Absent selected for period:', period)
+                  handleStatusChange("absent")
+                }}
+                className="cursor-pointer"
+              >
                 <X className="h-4 w-4 text-red-600 mr-2" />
                 Absent
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleStatusChange("excused")}>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('🛡️ Excused selected for period:', period)
+                  handleStatusChange("excused")
+                }}
+                className="cursor-pointer"
+              >
                 <Shield className="h-4 w-4 text-blue-600 mr-2" />
                 Excused
               </DropdownMenuItem> 

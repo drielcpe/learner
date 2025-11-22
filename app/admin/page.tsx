@@ -1,9 +1,54 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, Users, BarChart3, Download, Settings, UserCheck, FileText, School } from "lucide-react"
+import { Calendar, Users, Clock, Download, UserCheck, FileText, School } from "lucide-react"
 import Link from "next/link"
 
-export default function AdminDashboard() {
+async function getDashboardData() {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/dashboard`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    
+    if (result.success) {
+      return result.data
+    } else {
+      console.error('API returned error:', result.error)
+      return null
+    }
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error)
+    return null
+  }
+}
+
+export default async function AdminDashboard() {
+  const dashboardData = await getDashboardData()
+
+  // Fallback data if API fails
+  const data = dashboardData || {
+    totalStudents: 0,
+    presentToday: 0,
+    lateToday: 0,
+    absentToday: 0,
+    todaysAttendanceRate: 0,
+    pendingPayments: 0,
+    generatedReports: 0,
+    weeklyAttendance: 0,
+    monthlyPayments: 0,
+    className: 'No Class Data'
+  }
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -13,7 +58,6 @@ export default function AdminDashboard() {
             Welcome back, Ms. Santos! Manage your class and monitor student progress.
           </p>
         </div>
-    
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -23,22 +67,35 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">35</div>
+            <div className="text-2xl font-bold">{data.totalStudents}</div>
             <p className="text-xs text-muted-foreground">
-              Grade 7 - Section A
+              {data.className}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Class Attendance</CardTitle>
+            <CardTitle className="text-sm font-medium">Present Today</CardTitle>
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">92%</div>
+            <div className="text-2xl font-bold">{data.presentToday}/{data.totalStudents}</div>
             <p className="text-xs text-muted-foreground">
-              Today's attendance rate
+              Students in class today
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Late Today</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.lateToday}</div>
+            <p className="text-xs text-muted-foreground">
+              Arrived late today
             </p>
           </CardContent>
         </Card>
@@ -49,22 +106,9 @@ export default function AdminDashboard() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">{data.pendingPayments}</div>
             <p className="text-xs text-muted-foreground">
               Need verification
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reports</CardTitle>
-            <Download className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">12</div>
-            <p className="text-xs text-muted-foreground">
-              Generated this month
             </p>
           </CardContent>
         </Card>
@@ -97,7 +141,6 @@ export default function AdminDashboard() {
                 Payment Verification
               </Link>
             </Button>
-        
           </CardContent>
         </Card>
 
@@ -114,7 +157,15 @@ export default function AdminDashboard() {
                 <UserCheck className="h-4 w-4 text-green-600" />
                 <span className="text-sm font-medium">Present Today</span>
               </div>
-              <span className="text-sm font-bold text-green-600">32 students</span>
+              <span className="text-sm font-bold text-green-600">{data.presentToday} students</span>
+            </div>
+            
+            <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-yellow-600" />
+                <span className="text-sm font-medium">Late Today</span>
+              </div>
+              <span className="text-sm font-bold text-yellow-600">{data.lateToday} students</span>
             </div>
             
             <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border">
@@ -122,7 +173,7 @@ export default function AdminDashboard() {
                 <Users className="h-4 w-4 text-red-600" />
                 <span className="text-sm font-medium">Absent Today</span>
               </div>
-              <span className="text-sm font-bold text-red-600">3 students</span>
+              <span className="text-sm font-bold text-red-600">{data.absentToday} students</span>
             </div>
             
             <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border">
@@ -130,7 +181,7 @@ export default function AdminDashboard() {
                 <FileText className="h-4 w-4 text-blue-600" />
                 <span className="text-sm font-medium">Pending Payments</span>
               </div>
-              <span className="text-sm font-bold text-blue-600">8 requests</span>
+              <span className="text-sm font-bold text-blue-600">{data.pendingPayments} requests</span>
             </div>
 
             <div className="pt-2">
@@ -138,19 +189,17 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="flex justify-between">
                   <span>Weekly Attendance:</span>
-                  <span className="font-medium">89%</span>
+                  <span className="font-medium">{data.weeklyAttendance}%</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Monthly Payments:</span>
-                  <span className="font-medium">75%</span>
+                  <span className="font-medium">{data.monthlyPayments}%</span>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
-
-    
     </div>
   )
 }

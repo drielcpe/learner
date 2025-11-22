@@ -24,61 +24,52 @@ import { DataTablePagination } from "../../../attendance/components/data-table-p
 import { DataTableToolbar } from "../../../attendance/components/data-table-toolbar"
 import type { Attendance, DayKey, PeriodKey, AttendanceStatus } from "../../../attendance/data/schema"
 
+// Properly extend the table meta type
 declare module "@tanstack/react-table" {
-  interface TableMeta<TData> {
+  interface TableMeta<TData extends Attendance> {
     updateAttendance?: (
-      rowIndex: number,
+      studentId: number,
       day: DayKey,
       period: PeriodKey,
-      value: boolean | AttendanceStatus
-    ) => void
+      status: AttendanceStatus
+    ) => Promise<void>
   }
 }
 
-interface SecretaryDataTableProps {
+interface AdminDataTableProps {
   columns: ColumnDef<Attendance, any>[]
   data: Attendance[]
-}
-
-export function SecretaryDataTable({ columns, data }: SecretaryDataTableProps) {
-  const [internalData, setInternalData] = React.useState(data)
-
-  // Update internal data when props change
-  React.useEffect(() => {
-    setInternalData(data)
-  }, [data])
-
-  const updateAttendance = (
-    rowIndex: number,
+  grades?: string[]
+  sections?: string[]
+  selectedGrade?: string
+  selectedSection?: string
+  onGradeChange?: (value: string) => void
+  onSectionChange?: (value: string) => void
+  onUpdateAttendance?: (
+    studentId: number,
     day: DayKey,
     period: PeriodKey,
-    value: boolean | AttendanceStatus
-  ) => {
-    setInternalData((prev) =>
-      prev.map((row, idx) => {
-        if (idx !== rowIndex) return row
+    status: AttendanceStatus
+  ) => Promise<void>
+}
 
-        const currentAttendance = row.attendance || {}
-        const currentDay = currentAttendance[day] || {}
-        
-        return {
-          ...row,
-          attendance: {
-            ...currentAttendance,
-            [day]: {
-              ...currentDay,
-              [period]: value,
-            },
-          },
-        }
-      })
-    )
-  }
-
+export function AdminDataTable({ 
+  columns, 
+  data, 
+  grades = [],
+  sections = [],
+  selectedGrade = "all",
+  selectedSection = "all",
+  onGradeChange,
+  onSectionChange,
+  onUpdateAttendance
+}: AdminDataTableProps) {
   const table = useReactTable({
-    data: internalData,
+    data,
     columns,
-    meta: { updateAttendance },
+    meta: { 
+      updateAttendance: onUpdateAttendance 
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -87,7 +78,15 @@ export function SecretaryDataTable({ columns, data }: SecretaryDataTableProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <DataTableToolbar table={table} />
+      <DataTableToolbar 
+        table={table} 
+        grades={grades}
+        sections={sections}
+        selectedGrade={selectedGrade}
+        selectedSection={selectedSection}
+        onGradeChange={onGradeChange}
+        onSectionChange={onSectionChange}
+      />
       
       <div className="overflow-x-auto rounded-md border">
         <ShadTable>

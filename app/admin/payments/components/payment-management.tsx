@@ -65,7 +65,7 @@ interface PaymentMethodType {
 interface Payment {
   id: number
   student_id: number
-  payment_method_id: number
+  payment_method_id: number | null
   amount: number
   status: PaymentStatus
   reference_number: string | null
@@ -102,10 +102,55 @@ const methodConfig = {
   gcash: { color: "bg-purple-100 text-purple-800 border-purple-200", label: "GCash" },
   cash: { color: "bg-green-100 text-green-800 border-green-200", label: "Cash" },
   bank_transfer: { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Bank Transfer" },
-  // Add fallbacks for any method names that might come from the database
   'bank transfer': { color: "bg-blue-100 text-blue-800 border-blue-200", label: "Bank Transfer" },
 } as const
 
+// Status mapping function to handle uppercase values from database
+const mapStatus = (status: string): PaymentStatus => {
+  const statusMap: Record<string, PaymentStatus> = {
+    'active': 'pending',
+    'ACTIVE': 'pending',
+    'inactive': 'pending', 
+    'INACTIVE': 'pending',
+    'pending': 'pending',
+    'PENDING': 'pending',
+    'processing': 'processing',
+    'PROCESSING': 'processing',
+    'paid': 'paid',
+    'PAID': 'paid',
+    'completed': 'completed',
+    'COMPLETED': 'completed',
+    'failed': 'failed',
+    'FAILED': 'failed',
+    'cancelled': 'cancelled',
+    'CANCELLED': 'cancelled',
+    'reviewed': 'reviewed',
+    'REVIEWED': 'reviewed'
+  };
+  
+  const mappedStatus = statusMap[status] || 'pending';
+  console.log(`🔄 Mapping status: "${status}" -> "${mappedStatus}"`);
+  return mappedStatus;
+};
+
+// Status icon function
+const getStatusIcon = (status: PaymentStatus) => {
+  switch (status) {
+    case 'completed': 
+    case 'paid': 
+      return <CheckCircle className="h-4 w-4 text-green-600" />;
+    case 'pending': 
+      return <Clock className="h-4 w-4 text-yellow-600" />;
+    case 'processing': 
+      return <Clock className="h-4 w-4 text-blue-600" />;
+    case 'reviewed':
+      return <CheckCircle className="h-4 w-4 text-purple-600" />;
+    case 'failed': 
+      return <XCircle className="h-4 w-4 text-red-600" />;
+    default: 
+      return <Clock className="h-4 w-4 text-gray-600" />;
+  }
+}
 
 // DataTablePagination Component
 function DataTablePagination({ table }: { table: any }) {
@@ -287,28 +332,27 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
         );
       },
     },
-   {
-  accessorKey: "method_name",
-  header: "Method",
-  cell: ({ row }) => {
-    const methodCode = (row.original.method_code || '').toLowerCase();
-    const methodName = row.original.payment_method_name || 'Unknown';
-    
-    // Try to find config by code first, then by name
-    const config = methodConfig[methodCode as keyof typeof methodConfig] || 
-                   methodConfig[methodName.toLowerCase() as keyof typeof methodConfig] || 
-                   { 
-                     color: "bg-gray-100 text-gray-800 border-gray-200", 
-                     label: methodName 
-                   };
-    
-    return (
-      <Badge variant="outline" className={config.color}>
-        {config.label}
-      </Badge>
-    )
-  },
-},
+    {
+      accessorKey: "method_name",
+      header: "Method",
+      cell: ({ row }) => {
+        const methodCode = (row.original.method_code || '').toLowerCase();
+        const methodName = row.original.payment_method_name || 'Unknown';
+        
+        const config = methodConfig[methodCode as keyof typeof methodConfig] || 
+                       methodConfig[methodName.toLowerCase() as keyof typeof methodConfig] || 
+                       { 
+                         color: "bg-gray-100 text-gray-800 border-gray-200", 
+                         label: methodName 
+                       };
+        
+        return (
+          <Badge variant="outline" className={config.color}>
+            {config.label}
+          </Badge>
+        )
+      },
+    },
     {
       accessorKey: "status",
       header: "Status",
@@ -318,10 +362,14 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
           color: "bg-gray-100 text-gray-800 border-gray-200", 
           label: status.charAt(0).toUpperCase() + status.slice(1) 
         };
+        
         return (
-          <Badge variant="outline" className={config.color}>
-            {config.label}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {getStatusIcon(status)}
+            <Badge variant="outline" className={config.color}>
+              {config.label}
+            </Badge>
+          </div>
         )
       },
     },
@@ -366,7 +414,6 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
           onUpdatePaymentStatus(payment.id, newStatus)
         }
 
-        // Show actions based on current status
         const getAvailableActions = () => {
           const status = payment.status || 'pending';
           
@@ -406,13 +453,10 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
         }
 
         const availableActions = getAvailableActions()
-
-        // Hide actions dropdown for paid and completed payments
         const shouldHideActions = payment.status === 'paid' || payment.status === 'completed'
 
         return (
           <div className="flex gap-2">
-            {/* View button - always visible */}
             <Button 
               variant="outline" 
               size="sm" 
@@ -424,7 +468,6 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
               View
             </Button>
           
-            {/* Adviser Actions Dropdown - hidden for paid/completed payments */}
             {!shouldHideActions && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -514,7 +557,7 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
   )
 }
 
-// Debug Component to see payment data
+// Debug Component
 function PaymentDebug({ payments }: { payments: Payment[] }) {
   return (
     <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
@@ -552,10 +595,9 @@ export function PaymentManagement() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
 
-  // New payment form state
+  // New payment form state - payment method removed
   const [newPayment, setNewPayment] = useState({
     student_ids: [] as number[],
-    payment_method_id: "",
     amount: "",
     description: "",
     desc: "",
@@ -572,49 +614,88 @@ export function PaymentManagement() {
     const gradeMatch = selectedGrade === "all" || student.grade === selectedGrade
     const sectionMatch = selectedSection === "all" || student.section === selectedSection
     return gradeMatch && sectionMatch
-  })
+  }); // Added missing closing brace and semicolon
 
-  // Fetch all data
-// In your fetchData function, update the payments processing:
+  // Status color function
+  const getStatusColor = (status: PaymentStatus) => {
+    const actualStatus = status || 'pending';
+    switch (actualStatus) {
+      case 'completed': 
+      case 'paid': 
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'pending': 
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'processing': 
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'reviewed':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'failed': 
+        return 'bg-red-100 text-red-800 border-red-200';
+      default: 
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  }
+
+// Update the students fetching part in your fetchData function
 const fetchData = async () => {
   setLoading(true)
   try {
-    const [paymentsRes, studentsRes, methodsRes] = await Promise.all([
-      fetch('/api/payments'),
-      fetch('/api/students/dropdown'),
-      fetch('/api/payment-methods')
-    ]);
+    console.log('🔄 Starting fetchData...');
     
+    // Fetch payments
+    const paymentsRes = await fetch('/api/payments?' + new Date().getTime());
     const paymentsData = await paymentsRes.json();
-    const studentsData = await studentsRes.json();
-    const methodsData = await methodsRes.json();
     
     if (paymentsData.success) {
-      // Map the API data to match your frontend interface
-      const mappedPayments = paymentsData.data.map((payment: any) => ({
-        ...payment,
-        // Map payment_method_name to method_name for frontend
-        method_name: payment.payment_method_name,
-        method_code: payment.payment_method_name ? 
-          payment.payment_method_name.toLowerCase().replace(' ', '_') : 'unknown',
-        // Add fallback for null method names
-        payment_method_name: payment.payment_method_name || 'Unknown Method'
-      }));
+      const mappedPayments = paymentsData.data.map((payment: any) => {
+        const mappedStatus = payment.status.toLowerCase() as PaymentStatus;
+        return {
+          ...payment,
+          status: mappedStatus,
+          method_name: payment.payment_method_name,
+          method_code: payment.payment_method_name ? 
+            payment.payment_method_name.toLowerCase().replace(' ', '_') : 'unknown',
+          payment_method_name: payment.payment_method_name || 'Unknown Method'
+        };
+      });
       setPayments(mappedPayments);
     }
+
+    // 🔥 CRITICAL: Fetch ACTIVE students only
+    console.log('👥 Fetching active students...');
+    const studentsRes = await fetch('/api/students?' + new Date().getTime());
+    const studentsData = await studentsRes.json();
+    
+    console.log('📦 STUDENTS API RESPONSE:', studentsData);
     
     if (studentsData.success) {
-      setStudents(studentsData.data);
-      // Extract unique grades and sections
-      const uniqueGrades = Array.from(new Set(studentsData.data.map((s: Student) => s.grade))).sort() as string[];
-      const uniqueSections = Array.from(new Set(studentsData.data.map((s: Student) => s.section))).sort() as string[];
+      // Additional client-side filtering just in case
+      const activeStudents = studentsData.data.filter((student: Student) => 
+        student.status !== 'INACTIVE' && student.status !== 'inactive'
+      );
+      
+      setStudents(activeStudents);
+      
+      // Extract unique grades and sections from ACTIVE students only
+      const uniqueGrades = [...new Set(activeStudents.map((student: Student) => student.grade))].filter(Boolean);
+      const uniqueSections = [...new Set(activeStudents.map((student: Student) => student.section))].filter(Boolean);
+      
       setGrades(uniqueGrades);
       setSections(uniqueSections);
+      
+      console.log('✅ ACTIVE STUDENTS DATA:', {
+        total: activeStudents.length,
+        grades: uniqueGrades,
+        sections: uniqueSections
+      });
+    } else {
+      console.error('❌ Failed to fetch students:', studentsData.error);
     }
+
+    // ... rest of your fetchData code
     
-    if (methodsData.success) setPaymentMethods(methodsData.data);
   } catch (error) {
-    console.error('Error fetching data:', error);
+    console.error('❌ Error fetching data:', error);
     alert('Failed to fetch data. Please check your connection.');
   } finally {
     setLoading(false);
@@ -624,19 +705,19 @@ const fetchData = async () => {
     fetchData();
   }, []);
 
-  // Create payment function
+  // Create payment function - payment method can be blank
   const createPayment = async () => {
     try {
       setLoading(true);
 
-      // Make sure all required fields are present
+      // Create payment data - payment method is optional
       const paymentData = {
         student_ids: selectedStudents,
         amount: parseFloat(newPayment.amount),
         description: newPayment.description || newPayment.desc || 'Payment',
         desc: newPayment.desc,
-        payment_method_id: parseInt(newPayment.payment_method_id),
         due_date: newPayment.due_date
+        // payment_method_id is optional and can be set later
       };
 
       console.log('📤 Sending payment data:', paymentData);
@@ -653,13 +734,10 @@ const fetchData = async () => {
       console.log('📨 Response:', result);
 
       if (result.success) {
-        // Refresh the payments list
         await fetchData();
         setIsCreateModalOpen(false);
-        // Reset form
         setNewPayment({
           student_ids: [],
-          payment_method_id: "",
           amount: "",
           description: "",
           desc: "",
@@ -680,56 +758,65 @@ const fetchData = async () => {
     }
   }
 
-  // Update payment status with proper error handling
-  const updatePaymentStatus = async (paymentId: number, newStatus: PaymentStatus) => {
-    try {
-      console.log('🔄 Starting updatePaymentStatus for payment:', paymentId);
-      
-      // Validate payment ID
-      if (!paymentId || paymentId === 0 || isNaN(paymentId)) {
-        console.error('❌ Invalid payment ID:', paymentId);
-        alert(`Invalid payment ID: ${paymentId}. Please check the payment data.`);
-        return;
-      }
-      
-      setActionLoading(paymentId);
-      
-      const response = await fetch(`/api/payments/${paymentId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
+  // Update payment status
+// Update your updatePaymentStatus function
+const updatePaymentStatus = async (paymentId: number, newStatus: PaymentStatus) => {
+  try {
+    console.log('🔄 Starting updatePaymentStatus for payment:', paymentId, 'to status:', newStatus);
+    
+    setActionLoading(paymentId);
+    
+    const response = await fetch(`/api/payments/${paymentId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: newStatus })
+    });
 
-      console.log('📡 Response status:', response.status);
-      
-      const result = await response.json();
-      console.log('📦 API response:', result);
-      
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
-      }
+    console.log('📡 Response status:', response.status);
+    
+    const result = await response.json();
+    console.log('📦 API response with UPDATED DATA:', result);
 
-      console.log('✅ Payment status updated successfully');
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || `HTTP error! status: ${response.status}`);
+    }
+
+    console.log('✅ Payment status updated successfully');
+    
+    // 🔥 CRITICAL FIX: Update local state with the ACTUAL data returned from API
+    if (result.data) {
+      const updatedPayment = {
+        ...result.data,
+        status: mapStatus(result.data.status), // Map the status from the returned data
+        method_name: result.data.payment_method_name,
+        method_code: result.data.payment_method_name ? 
+          result.data.payment_method_name.toLowerCase().replace(' ', '_') : 'unknown'
+      };
       
-      // Update local state immediately
+      console.log('🔄 UPDATING LOCAL STATE WITH:', updatedPayment);
+      
       setPayments(prev => prev.map(payment => 
-        payment.id === paymentId 
-          ? { ...payment, status: newStatus }
-          : payment
+        payment.id === paymentId ? updatedPayment : payment
       ));
       
-      setIsViewModalOpen(false);
-      alert(result.message || 'Payment status updated successfully!');
-      
-    } catch (error) {
-      console.error('💥 Error updating payment:', error);
-      alert(`Failed to update payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setActionLoading(null);
+      // Also update selectedPayment if it's the one we're viewing
+      if (selectedPayment && selectedPayment.id === paymentId) {
+        setSelectedPayment(updatedPayment);
+      }
     }
+    
+    setIsViewModalOpen(false);
+    alert(result.message || 'Payment status updated successfully!');
+    
+  } catch (error) {
+    console.error('💥 Error updating payment:', error);
+    alert(`Failed to update payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  } finally {
+    setActionLoading(null);
   }
+}
 
   const handleViewPayment = (payment: Payment) => {
     setSelectedPayment(payment);
@@ -750,43 +837,6 @@ const fetchData = async () => {
 
   const clearAllStudents = () => {
     setSelectedStudents([]);
-  }
-
-  const getStatusIcon = (status: PaymentStatus) => {
-    switch (status) {
-      case 'completed': 
-      case 'paid': 
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'pending': 
-        return <Clock className="h-4 w-4 text-yellow-600" />;
-      case 'processing': 
-        return <Clock className="h-4 w-4 text-blue-600" />;
-      case 'reviewed':
-        return <CheckCircle className="h-4 w-4 text-purple-600" />;
-      case 'failed': 
-        return <XCircle className="h-4 w-4 text-red-600" />;
-      default: 
-        return <Clock className="h-4 w-4 text-gray-600" />;
-    }
-  }
-
-  const getStatusColor = (status: PaymentStatus) => {
-    const actualStatus = status || 'pending';
-    switch (actualStatus) {
-      case 'completed': 
-      case 'paid': 
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'pending': 
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'processing': 
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'reviewed':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'failed': 
-        return 'bg-red-100 text-red-800 border-red-200';
-      default: 
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
   }
 
   return (
@@ -846,13 +896,13 @@ const fetchData = async () => {
         </CardContent>
       </Card>
 
-      {/* Create Payment Modal */}
+      {/* Create Payment Modal - Payment method selection removed */}
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Payment</DialogTitle>
             <DialogDescription>
-              Create new payments for selected students. Filter by grade and section first, then select students.
+              Create new payments for selected students. Students can choose their payment method later.
             </DialogDescription>
           </DialogHeader>
           
@@ -936,25 +986,6 @@ const fetchData = async () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="payment_method">Payment Method</Label>
-              <Select 
-                value={newPayment.payment_method_id} 
-                onValueChange={(value) => setNewPayment({...newPayment, payment_method_id: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select method" />
-                </SelectTrigger>
-                <SelectContent>
-                  {paymentMethods.map(method => (
-                    <SelectItem key={method.id} value={method.id.toString()}>
-                      {method.method_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="amount">Amount (₱)</Label>
               <Input
                 id="amount"
@@ -1007,7 +1038,7 @@ const fetchData = async () => {
             </Button>
             <Button 
               onClick={createPayment} 
-              disabled={loading || selectedStudents.length === 0 || !newPayment.payment_method_id || !newPayment.amount}
+              disabled={loading || selectedStudents.length === 0 || !newPayment.amount}
             >
               {loading ? "Creating..." : `Create ${selectedStudents.length} Payment(s)`}
             </Button>
@@ -1025,7 +1056,6 @@ const fetchData = async () => {
             </DialogDescription>
           </DialogHeader>
 
-          
           {selectedPayment && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -1044,14 +1074,17 @@ const fetchData = async () => {
 
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Payment Method</Label>
-                  <p>{selectedPayment.method_name || 'Unknown'}</p>
+                  <p>{selectedPayment.method_name || 'Not selected yet'}</p>
                 </div>
 
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                  <Badge variant="outline" className={getStatusColor(selectedPayment.status)}>
-                    {(selectedPayment.status || 'pending').charAt(0).toUpperCase() + (selectedPayment.status || 'pending').slice(1)}
-                  </Badge>
+                  <div className="flex items-center gap-2 mt-1">
+                    {getStatusIcon(selectedPayment.status)}
+                    <Badge variant="outline" className={getStatusColor(selectedPayment.status)}>
+                      {(selectedPayment.status || 'pending').charAt(0).toUpperCase() + (selectedPayment.status || 'pending').slice(1)}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div>

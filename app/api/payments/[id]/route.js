@@ -17,6 +17,7 @@ export async function GET(request) {
         s.grade,
         s.section,
         s.adviser,
+        s.status,
         pm.method_name,
         pm.method_code
       FROM payments p
@@ -114,10 +115,12 @@ export async function POST(request) {
           s.section,
           s.adviser,
           pm.method_name,
-          pm.method_code
+          pm.method_code,
+          s.status,
         FROM payments p
         LEFT JOIN students s ON p.student_id = s.id
         LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+         WHERE s.status != 'INACTIVE'
         WHERE p.id = ?
       `, [result.insertId]);
 

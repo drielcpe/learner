@@ -1,35 +1,57 @@
 import { cookies } from "next/headers"
-
 import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
-import { SiteHeader } from  "@/app/student/components/side-header"
-import SecretaryAttendanceClient from "./SecretaryAttendanceClient"
-import { attendanceSchema } from "../../attendance/data/schema"
-import fs from "fs/promises"
-import path from "path"
+import { SiteHeader } from "@/app/student/components/side-header"
+import AdminAttendanceClient from "./AdminAttendanceClient"
+import type { Attendance } from "../../attendance/data/schema"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, UserCog } from "lucide-react"
 
-async function loadData() {
-  const file = await fs.readFile(
-    path.join(process.cwd(), "app/attendance/data/tasks.json")
-  )
-  return attendanceSchema.array().parse(JSON.parse(file.toString()))
+async function getAttendanceData(): Promise<Attendance[]> {
+  try {
+    // Use relative URL instead of environment variable
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/attendance`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const result = await response.json()
+    
+    if (result.success) {
+      console.log(`✅ Loaded ${result.data.length} students with attendance data`)
+      return result.data
+    } else {
+      console.error('❌ API returned error:', result.error)
+      return []
+    }
+  } catch (error) {
+    console.error('❌ Error fetching attendance data:', error)
+    return []
+  }
 }
-export default async function DashboardLayout({
+
+export default async function AdminAttendancePage({
   children,
 }: {
   children: React.ReactNode
 }) {
   const cookieStore = await cookies()
   const defaultOpen = cookieStore.get("sidebar_state")?.value === "true"
-  const data = await loadData()
+  const attendanceData = await getAttendanceData()
 
   return (
-      <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between m-5">
         <div className="flex items-center gap-4">
@@ -43,7 +65,7 @@ export default async function DashboardLayout({
 
         <div className="flex items-center gap-2">
           <UserCog className="h-5 w-5 text-blue-600" />
-          <span className="text-sm font-medium text-blue-600">Adviser Mode</span>
+          <span className="text-sm font-medium text-blue-600">Admin Mode</span>
         </div>
       </div>
       
@@ -55,13 +77,8 @@ export default async function DashboardLayout({
         </p>
       </div>
 
-      <SecretaryAttendanceClient data={data} />
+      <AdminAttendanceClient data={attendanceData} />
+      {children}
     </div>
-
-
-
-
-
-
   )
 }
