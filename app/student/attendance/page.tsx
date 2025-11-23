@@ -1,13 +1,13 @@
-// app/payments/student/page.tsx
+// app/student/attendance/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
-import ProtectedRoute from '@/components/ProtectedRoute'
-import PaymentsClient from "./PaymentsClient"
-import { paymentSchema } from "./data/schema"
+import ProtectedRoute from '@/components/ProtectedRoute' // Add this import
+import StudentAttendanceClient from "./StudentAttendanceClient"
+import { attendanceSchema } from "../../attendance/data/schema"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, CreditCard, Loader2 } from "lucide-react"
+import { Calendar, User, ArrowLeft, Loader2 } from "lucide-react"
 
 interface StudentData {
   studentId: string
@@ -17,9 +17,9 @@ interface StudentData {
   role: string
 }
 
-async function loadStudentPayments(studentId: string) {
+async function loadStudentAttendance(studentId: string) {
   try {
-    const response = await fetch(`/api/student/payments?studentId=${studentId}`, {
+    const response = await fetch(`/api/student/attendance?studentId=${studentId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -27,24 +27,24 @@ async function loadStudentPayments(studentId: string) {
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch payments: ${response.status}`)
+      throw new Error(`Failed to fetch attendance: ${response.status}`)
     }
 
     const result = await response.json()
     
     if (!result.success) {
-      throw new Error(result.error || 'Failed to load payment data')
+      throw new Error(result.error || 'Failed to load attendance data')
     }
 
     // Validate data with your schema
-    return paymentSchema.array().parse(result.data)
+    return attendanceSchema.array().parse(result.data)
   } catch (error) {
-    console.error('Error loading student payments:', error)
+    console.error('Error loading student attendance:', error)
     return []
   }
 }
 
-export default function StudentPaymentsPage() {
+export default function StudentAttendancePage() {
   const [data, setData] = useState<any[]>([])
   const [studentData, setStudentData] = useState<StudentData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -94,12 +94,12 @@ export default function StudentPaymentsPage() {
         }
 
         setStudentData(userData)
-        const paymentData = await loadStudentPayments(userData.studentId)
-        setData(paymentData)
+        const attendanceData = await loadStudentAttendance(userData.studentId)
+        setData(attendanceData)
         
       } catch (err) {
-        setError('Failed to load payment data')
-        console.error('Error fetching payments:', err)
+        setError('Failed to load attendance data')
+        console.error('Error fetching attendance:', err)
       } finally {
         setLoading(false)
       }
@@ -110,9 +110,9 @@ export default function StudentPaymentsPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requiredRole="student">
+      <ProtectedRoute requiredRole="student"> {/* Add this wrapper */}
         <div className="container mx-auto py-6 space-y-6">
-          <div className="flex items-center justify-between m-5">
+          <div className="flex items-center justify-between px-5">
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm" asChild className="gap-2">
                 <a href="/student">
@@ -126,7 +126,7 @@ export default function StudentPaymentsPage() {
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-              <p className="text-muted-foreground">Loading your payment data...</p>
+              <p className="text-muted-foreground">Loading your attendance data...</p>
             </div>
           </div>
         </div>
@@ -136,9 +136,9 @@ export default function StudentPaymentsPage() {
 
   if (error) {
     return (
-      <ProtectedRoute requiredRole="student">
+      <ProtectedRoute requiredRole="student"> {/* Add this wrapper */}
         <div className="container mx-auto py-6 space-y-6">
-          <div className="flex items-center justify-between m-5">
+          <div className="flex items-center justify-between px-5">
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm" asChild className="gap-2">
                 <a href="/student">
@@ -152,7 +152,7 @@ export default function StudentPaymentsPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <div className="text-center">
-                <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h2 className="text-xl font-bold mb-2">Error Loading Data</h2>
                 <p className="text-muted-foreground">{error}</p>
                 <Button className="mt-4" asChild>
@@ -168,9 +168,9 @@ export default function StudentPaymentsPage() {
 
   if (!studentData) {
     return (
-      <ProtectedRoute requiredRole="student">
+      <ProtectedRoute requiredRole="student"> {/* Add this wrapper */}
         <div className="container mx-auto py-6 space-y-6">
-          <div className="flex items-center justify-between m-5">
+          <div className="flex items-center justify-between px-5">
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm" asChild className="gap-2">
                 <a href="/student">
@@ -184,9 +184,9 @@ export default function StudentPaymentsPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <div className="text-center">
-                <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h2 className="text-xl font-bold mb-2">Student Not Found</h2>
-                <p className="text-muted-foreground">Please log in to view your payments.</p>
+                <p className="text-muted-foreground">Please log in to view your attendance.</p>
                 <Button className="mt-4" asChild>
                   <a href="/login">Go to Login</a>
                 </Button>
@@ -199,10 +199,10 @@ export default function StudentPaymentsPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole="student">
+    <ProtectedRoute requiredRole="student"> {/* Add this wrapper */}
       <div className="container mx-auto py-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between m-5">
+        <div className="flex items-center justify-between px-5">
           <div className="flex items-center gap-4">
             <Button variant="outline" size="sm" asChild className="gap-2">
               <a href="/student/dashboard">
@@ -211,22 +211,21 @@ export default function StudentPaymentsPage() {
               </a>
             </Button>
           </div>
-
-          <div className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-green-600" />
-            <span className="text-sm font-medium text-green-600">Payment System</span>
-          </div>
         </div>
         
         {/* Title Section */}
-        <div className="m-5">
-          <h1 className="text-3xl font-bold tracking-tight">My Payments</h1>
+        <div className="px-5">
+          <h1 className="text-3xl font-bold tracking-tight">My Attendance</h1>
           <p className="text-muted-foreground mt-1">
-            View and manage your payment history and outstanding balances
+            View your personal attendance records
           </p>
         </div>
 
-        <PaymentsClient data={data} />
+        <StudentAttendanceClient 
+          data={data} 
+          studentId={studentData.studentId}
+          studentName={studentData.studentName}
+        />
       </div>
     </ProtectedRoute>
   )

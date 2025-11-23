@@ -126,19 +126,19 @@ export default async function AdminDashboard() {
             <Button asChild className="w-full justify-start gap-2">
               <Link href="/admin/attendance">
                 <UserCheck className="h-4 w-4" />
-                Attendance Manager
+                Attendance Console
               </Link>
             </Button>
             <Button asChild variant="outline" className="w-full justify-start gap-2">
               <Link href="/student-management">
                 <Users className="h-4 w-4" />
-                Student Directory
+                Student Management
               </Link>
             </Button>
             <Button asChild variant="outline" className="w-full justify-start gap-2">
-              <Link href="/payments/admin">
+              <Link href="/admin/payments/">
                 <FileText className="h-4 w-4" />
-                Payment Verification
+                Payment Management
               </Link>
             </Button>
           </CardContent>

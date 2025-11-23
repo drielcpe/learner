@@ -234,12 +234,7 @@ export default function StudentsClient({ data }: StudentsClientProps) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Students</h2>
-          <p className="text-muted-foreground">
-            Manage your students and their information
-          </p>
-        </div>
+   
         <CreateStudentButton 
           onCreateStudent={handleCreateStudent}
           isCreating={isUpdating}

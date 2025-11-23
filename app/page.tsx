@@ -1,6 +1,23 @@
-import Image from "next/image";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import ProtectedRoute from '@/components/ProtectedRoute'
 
 export default function Home() {
-  redirect("/student-management");
+  const router = useRouter();
+
+  useEffect(() => {
+    router.push("/student/dashboard");
+  }, [router]);
+
+  return (
+    <ProtectedRoute requiredRole="student">
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p>Redirecting to dashboard...</p>
+        </div>
+      </div>
+    </ProtectedRoute>
+  );
 }

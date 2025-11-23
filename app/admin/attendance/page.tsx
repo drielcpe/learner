@@ -51,9 +51,8 @@ export default async function AdminAttendancePage({
   const attendanceData = await getAttendanceData()
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between m-5">
+ <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" asChild className="gap-2">
             <a href="/admin">
@@ -62,21 +61,18 @@ export default async function AdminAttendancePage({
             </a>
           </Button>
         </div>
+          <div>
+          <h1 className="text-3xl font-bold tracking-tight">Attendance Management</h1>
+          <p className="text-muted-foreground">
+           Manage student attendance records - Update status and track attendance
+          </p>
+        </div>
 
         <div className="flex items-center gap-2">
           <UserCog className="h-5 w-5 text-blue-600" />
           <span className="text-sm font-medium text-blue-600">Admin Mode</span>
         </div>
       </div>
-      
-      {/* Title Section */}
-      <div className="m-5">
-        <h1 className="text-3xl font-bold tracking-tight">Attendance Management</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage student attendance records - Update status and track attendance
-        </p>
-      </div>
-
       <AdminAttendanceClient data={attendanceData} />
       {children}
     </div>

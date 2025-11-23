@@ -1,247 +1,246 @@
-import { paymentSchema } from "../../../data/schema"
-import fs from "fs/promises"
-import path from "path"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft, Download, Share2, CheckCircle, XCircle, Upload, Camera, FileText } from "lucide-react"
+// app/payments/students/qr/[id]/page.tsx
+"use client"
+
+import { useEffect, useState } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { ArrowLeft, Download, Copy, CheckCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
-import { QRCodeImage } from "../../../components/qr-code-image"
-import { TransactionUpload } from "../../../components/transaction-upload"
 
-async function loadData() {
-  const file = await fs.readFile(
-    path.join(process.cwd(), "app/payments/data/payments.json")
-  )
-  const jsonData = JSON.parse(file.toString())
-  
-  // Add missing fields with defaults
-  const processedData = jsonData.map((item: any) => ({
-    ...item,
-    created_at: item.created_at || new Date().toISOString(),
-    updated_at: item.updated_at || new Date().toISOString(),
-    reference_number: item.reference_number || "",
-    qr_code: item.qr_code || null,
-    due_date: item.due_date || null,
-    description: item.description || "",
-    transaction_proof: item.transaction_proof || null, // Add transaction proof field
-    uploaded_at: item.uploaded_at || null,
-  }))
-  
-  return paymentSchema.array().parse(processedData)
+interface PaymentMethodFromDB {
+  id: number
+  method_code: string
+  method_name: string
+  description: string
+  account_number: string
+  account_name: string
+  instructions: string
+  qr_code_image: string
+  is_active: boolean
 }
 
-interface PageProps {
-  params: Promise<{ id: string }>
+interface PaymentData {
+  id: number
+  student_id: string
+  student_name: string
+  amount: number
+  status: string
+  description: string
 }
 
-export default async function QRCodePage(props: PageProps) {
-  const params = await props.params
-  const data = await loadData()
-  const payment = data.find(p => p.id === params.id)
+export default function QRPaymentPage() {
+  const params = useParams()
+  const searchParams = useSearchParams()
+  const paymentId = params.id
+  const methodCode = searchParams.get('method')
+  const methodId = searchParams.get('methodId')
 
-  if (!payment) {
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodFromDB | null>(null)
+  const [paymentData, setPaymentData] = useState<PaymentData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        
+        // Fetch payment method details
+        if (methodId) {
+          const methodResponse = await fetch(`/api/payment-methods?id=${methodId}`)
+          const methodResult = await methodResponse.json()
+          
+          if (methodResult.success) {
+            setPaymentMethod(methodResult.data)
+          }
+        }
+
+        // Fetch payment details (you might need to create this endpoint)
+        const paymentResponse = await fetch(`/api/student/payments?studentId=${localStorage.getItem('studentId')}`)
+        const paymentResult = await paymentResponse.json()
+        
+        if (paymentResult.success) {
+          const currentPayment = paymentResult.data.find((p: any) => p.id.toString() === paymentId)
+          setPaymentData(currentPayment)
+        }
+
+      } catch (error) {
+        console.error('Error fetching data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [paymentId, methodId])
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  if (loading) {
     return (
-      <div className="container mx-auto py-6">
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
+      <ProtectedRoute requiredRole="student">
+        <div className="container mx-auto py-6 space-y-6">
+          <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <h2 className="text-xl font-bold mb-2">Payment Not Found</h2>
-              <p className="text-muted-foreground">The requested payment does not exist.</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading payment details...</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
+      </ProtectedRoute>
     )
   }
 
-  const canShowQR = (payment.status === "pending" || payment.status === "processing") && payment.qr_code
-  const isCompleted = payment.status === "completed"
-  const isFailed = payment.status === "failed" || payment.status === "cancelled"
-  const hasTransactionProof = payment.transaction_proof !== null
-
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between m-5">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" asChild className="gap-2">
-            <Link href="/payments/students">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Payments
-            </Link>
-          </Button>
+    <ProtectedRoute requiredRole="student">
+      <div className="container mx-auto py-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="sm" asChild className="gap-2">
+              <a href="/payments/student">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Payments
+              </a>
+            </Button>
+          </div>
         </div>
 
-     
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 m-5">
-        {/* QR Code Section */}
-        <div className="space-y-6">
-          {canShowQR ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>GCash QR Code</CardTitle>
-                <CardDescription>
-                  Scan this QR code to complete your payment via GCash
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center space-y-6">
-                {/* QR Code Image */}
-                <QRCodeImage 
-                  src={payment.qr_code || ""} 
-                  alt={`GCash QR Code for payment ${payment.reference_number}`}
-                  referenceNumber={payment.reference_number || ""}
-                />
-                
-                <div className="text-center space-y-2">
-                  <p className="text-sm text-muted-foreground">Reference Number:</p>
-                  <p className="font-mono text-lg font-bold">{payment.reference_number}</p>
-                  <Badge variant="secondary" className="mt-2">
-                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          ) : payment.payment_method === "gcash" && !payment.qr_code ? (
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <div className="text-4xl mb-4">📱</div>
-                  <h3 className="text-xl font-semibold text-gray-800">QR Code Not Available</h3>
-                  <p className="text-gray-600 mt-2">QR code image is not available for this payment.</p>
-                  <Badge variant="outline" className="mt-3">No QR Image</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          ) : isCompleted ? (
-            <Card className="bg-green-50 border-green-200">
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-green-800">Payment Completed</h3>
-                  <p className="text-green-600 mt-2">This payment has been successfully processed.</p>
-                  <Badge className="bg-green-600 text-white mt-3">Completed</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="bg-red-50 border-red-200">
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <XCircle className="h-16 w-16 text-red-600 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-red-800">Payment {payment.status}</h3>
-                  <p className="text-red-600 mt-2">This payment cannot be processed via QR code.</p>
-                  <Badge className="bg-red-600 text-white mt-3">
-                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-       
+        {/* Title Section */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">GCash Payment</h1>
+          <p className="text-muted-foreground mt-1">
+            Scan the QR code to complete your payment
+          </p>
         </div>
 
-        {/* Payment Details */}
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Payment Details */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Payment Details</CardTitle>
+              <CardTitle>Payment Details</CardTitle>
+              <CardDescription>
+                Review your payment information
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Student:</span>
-                <span className="text-sm font-medium">{payment.student_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Student ID:</span>
-                <span className="text-sm font-mono">{payment.student_id}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Grade & Section:</span>
-                <span className="text-sm font-medium">{payment.grade} - {payment.section}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Adviser:</span>
-                <span className="text-sm font-medium">{payment.adviser}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Amount:</span>
-                <span className="text-sm font-bold">₱{payment.amount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Payment Method:</span>
-                <span className="text-sm font-medium capitalize">{payment.payment_method}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Due Date:</span>
-                <span className="text-sm font-medium">
-                  {payment.due_date ? new Date(payment.due_date).toLocaleDateString() : "-"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Description:</span>
-                <span className="text-sm font-medium text-right">{payment.description}</span>
+            <CardContent className="space-y-4">
+              {paymentData && (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Amount:</span>
+                    <span className="text-lg font-bold text-green-600">
+                      ₱{paymentData.amount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Student ID:</span>
+                    <span className="text-sm">{paymentData.student_id}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Student Name:</span>
+                    <span className="text-sm">{paymentData.student_name}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Description:</span>
+                    <span className="text-sm">{paymentData.description}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Status:</span>
+                    <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                      Pending
+                    </Badge>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* QR Code and Instructions */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Scan to Pay</CardTitle>
+              <CardDescription>
+                Use GCash to scan the QR code
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {paymentMethod?.qr_code_image ? (
+                <div className="text-center">
+                  <img 
+                    src={paymentMethod.qr_code_image} 
+                    alt="GCash QR Code"
+                    className="mx-auto max-w-[200px] h-auto border rounded-lg"
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Open GCash and scan this QR code
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">QR code not available</p>
+                </div>
+              )}
+
+              {paymentMethod && (
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Account Details:</h4>
+                    <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Account Number:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm">{paymentMethod.account_number}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(paymentMethod.account_number)}
+                            className="h-6 w-6 p-0"
+                          >
+                            {copied ? (
+                              <CheckCircle className="h-3 w-3 text-green-600" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Account Name:</span>
+                        <span className="text-sm font-medium">{paymentMethod.account_name}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {paymentMethod.instructions && (
+                    <div>
+                      <h4 className="font-medium text-sm mb-2">Instructions:</h4>
+                      <p className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-lg">
+                        {paymentMethod.instructions}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-4">
+                <Button className="flex-1" variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Save QR Code
+                </Button>
+                <Button className="flex-1">
+                  I've Completed Payment
+                </Button>
               </div>
             </CardContent>
           </Card>
-   {/* Transaction Upload Section */}
-         
-          {/* Uploaded Proof Preview */}
-          {hasTransactionProof && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Uploaded Proof</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-green-600">
-                    <CheckCircle className="h-5 w-5" />
-                    <span className="font-medium">Transaction proof uploaded</span>
-                  </div>
-                  <div className="border rounded-lg p-3 bg-gray-50">
-                    <img 
-                      src={payment.transaction_proof || ""} 
-                      alt="Transaction proof" 
-                      className="w-full h-32 object-cover rounded"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Uploaded on: {payment.uploaded_at ? new Date(payment.uploaded_at).toLocaleString() : 'Recently'}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Payment Instructions */}
-        <div className="space-y-6">
-          {canShowQR && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Payment Instructions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="space-y-2">
-                  <p className="font-medium">Step 1: Scan & Pay</p>
-                  <p>1. Open GCash app on your phone</p>
-                  <p>2. Tap "Scan QR"</p>
-                  <p>3. Point your camera at the QR code</p>
-                  <p>4. Confirm the amount: <strong>₱{payment.amount.toLocaleString()}</strong></p>
-                  <p>5. Complete the payment</p>
-                </div>
-                
- {canShowQR && (    <TransactionUpload paymentId={payment.id} />
-          
-          )}
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
-    </div>
+    </ProtectedRoute>
   )
 }

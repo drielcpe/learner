@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Plus, Edit, Save, X, QrCode, Wallet, CreditCard, Banknote, Trash2, Search, Upload, Download } from "lucide-react"
+import { Plus, Edit, Save, X, QrCode, Wallet, CreditCard, Banknote, Trash2, Search, Upload, Download, ArrowLeft, UserCog } from "lucide-react"
 
 interface PaymentMethod {
   id: number;
@@ -509,36 +509,33 @@ const toggleMethodStatus = async (methodId: number, isActive: boolean) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" asChild className="gap-2">
+            <a href="/admin">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </a>
+          </Button>
+        </div>
+
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Payment Methods</h1>
           <p className="text-muted-foreground">
             Configure and manage payment methods
           </p>
         </div>
-        <Button onClick={handleCreate} className="gap-2">
+          <div className="flex items-center gap-2">
+          <UserCog className="h-5 w-5 text-blue-600" />
+          <span className="text-sm font-medium text-blue-600">Adviser Mode</span>
+        </div>
+       
+      </div>
+ <Button onClick={handleCreate} className="gap-2">
           <Plus className="h-4 w-4" />
           Add Method
         </Button>
-      </div>
-
-      {error && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-yellow-800 text-sm">{error}</p>
-            <Button variant="outline" size="sm" onClick={fetchPaymentMethods}>
-              Retry
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {useDummyData && (
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-          <p className="text-blue-800 text-sm">
-            💡 Using demo data. Connect to your database to manage real payment methods.
-          </p>
-        </div>
-      )}
+    
+   
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />

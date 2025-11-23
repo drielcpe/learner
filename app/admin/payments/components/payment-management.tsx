@@ -557,28 +557,6 @@ function PaymentsTable({ data, onViewPayment, onUpdatePaymentStatus, loading }: 
   )
 }
 
-// Debug Component
-function PaymentDebug({ payments }: { payments: Payment[] }) {
-  return (
-    <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
-      <h3 className="font-bold mb-2">🔍 Payment Data Debug:</h3>
-      <div className="text-sm">
-        {payments.length === 0 ? (
-          <p>No payments found</p>
-        ) : (
-          payments.slice(0, 5).map(payment => (
-            <div key={payment.id} className="flex gap-4 mb-1">
-              <span>ID: <strong>{payment.id}</strong></span>
-              <span>Student: {payment.student_name}</span>
-              <span>Amount: ₱{payment.amount}</span>
-              <span>Status: {payment.status}</span>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
 
 // Main PaymentManagement Component
 export function PaymentManagement() {
@@ -876,7 +854,7 @@ const updatePaymentStatus = async (paymentId: number, newStatus: PaymentStatus) 
       </div>
 
       {/* Debug Component - Remove after testing */}
-      <PaymentDebug payments={payments} />
+    
 
       {/* Payments Table */}
       <Card>

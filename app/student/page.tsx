@@ -1,121 +1,468 @@
+// app/student/personal-info/page.tsx
+"use client"
+
+import { useState, useEffect } from "react"
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Calendar, User, BarChart3, Download } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Save, User, Mail, Phone, MapPin, Edit, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
-export default function StudentDashboard() {
+interface StudentData {
+  id: number
+  student_id: string
+  student_name: string
+  email: string
+  contact_number: string
+  grade: string
+  section: string
+  adviser: string
+  address: string
+  birth_date: string
+  status: string
+  student_type: string
+  created_at: string
+  updated_at: string
+}
+
+interface UpdateData {
+  contact_number: string
+  address: string
+  email: string
+}
+
+export default function PersonalInfoPage() {
+  const router = useRouter()
+  const [studentData, setStudentData] = useState<StudentData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [formData, setFormData] = useState<UpdateData>({
+    contact_number: "",
+    address: "",
+    email: ""
+  })
+
+  useEffect(() => {
+    fetchStudentData()
+  }, [])
+
+  const fetchStudentData = async () => {
+    try {
+      setLoading(true)
+      
+      // Get student data from localStorage using the same pattern as attendance page
+      const getUserData = () => {
+        try {
+          // Try to get from userData in localStorage
+          const userData = localStorage.getItem('userData')
+          if (userData) {
+            return JSON.parse(userData)
+          }
+
+          // Fallback to individual items
+          const studentId = localStorage.getItem('studentId')
+          const studentName = localStorage.getItem('studentName')
+          const userRole = localStorage.getItem('userRole')
+
+          if (studentId && studentName) {
+            return {
+              studentId,
+              studentName,
+              grade: localStorage.getItem('grade') || '',
+              section: localStorage.getItem('section') || '',
+              role: userRole || 'student'
+            }
+          }
+          
+          return null
+        } catch (err) {
+          console.error('Error reading from localStorage:', err)
+          return null
+        }
+      }
+
+      const userData = getUserData()
+      
+      if (!userData) {
+        console.error('No student data found')
+        router.push('/login')
+        return
+      }
+
+      const response = await fetch(`/api/student/profile?studentId=${userData.studentId}`)
+      const result = await response.json()
+
+      if (result.success) {
+        setStudentData(result.data)
+        setFormData({
+          contact_number: result.data.contact_number || "",
+          address: result.data.address || "",
+          email: result.data.email || ""
+        })
+      } else {
+        console.error('Failed to fetch student data:', result.error)
+      }
+    } catch (error) {
+      console.error('Error fetching student data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSave = async () => {
+    try {
+      setSaving(true)
+      
+      // Get student ID using the same pattern
+      const getUserData = () => {
+        try {
+          const userData = localStorage.getItem('userData')
+          if (userData) {
+            return JSON.parse(userData)
+          }
+          const studentId = localStorage.getItem('studentId')
+          const studentName = localStorage.getItem('studentName')
+          if (studentId && studentName) {
+            return {
+              studentId,
+              studentName,
+              role: localStorage.getItem('userRole') || 'student'
+            }
+          }
+          return null
+        } catch (err) {
+          console.error('Error reading from localStorage:', err)
+          return null
+        }
+      }
+
+      const userData = getUserData()
+      
+      if (!userData) {
+        alert('Student ID not found. Please log in again.')
+        router.push('/login')
+        return
+      }
+
+      // Validate required fields
+      if (!formData.contact_number.trim()) {
+        alert('Contact number is required')
+        return
+      }
+
+      if (!formData.address.trim()) {
+        alert('Address is required')
+        return
+      }
+
+      if (!formData.email.trim()) {
+        alert('Email is required')
+        return
+      }
+
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.email)) {
+        alert('Please enter a valid email address')
+        return
+      }
+
+      const updateData = {
+        studentId: userData.studentId,
+        contact_number: formData.contact_number.trim(),
+        address: formData.address.trim(),
+        email: formData.email.trim()
+      }
+
+      console.log('Sending update data:', updateData)
+
+      const response = await fetch('/api/student/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData)
+      })
+
+      const result = await response.json()
+
+      console.log('Update response:', result)
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP error! status: ${response.status}`)
+      }
+
+      if (result.success) {
+        alert('Profile updated successfully!')
+        // Refresh the data
+        fetchStudentData()
+      } else {
+        throw new Error(result.error || 'Failed to update profile')
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error)
+      alert(`Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleInputChange = (field: keyof UpdateData, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  if (loading) {
+    return (
+      <ProtectedRoute requiredRole="student">
+        <div className="container mx-auto py-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+              <p>Loading student information...</p>
+            </div>
+          </div>
+        </div>
+      </ProtectedRoute>
+    )
+  }
+
+  if (!studentData) {
+    return (
+      <ProtectedRoute requiredRole="student">
+        <div className="container mx-auto py-6">
+          <div className="text-center">
+            <p>Student data not found.</p>
+            <Button className="mt-4" asChild>
+              <Link href="/student/dashboard/">Back to Dashboard</Link>
+            </Button>
+          </div>
+        </div>
+      </ProtectedRoute>
+    )
+  }
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Student Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Welcome back, John Doe! Here's your academic overview.
-          </p>
+    <ProtectedRoute requiredRole="student">
+      <div className="container mx-auto py-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Personal Information</h1>
+            <p className="text-muted-foreground">
+              Manage your personal details and contact information
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild className="gap-2">
+              <Link href="/student/dashboard/">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboards
+              </Link>
+            </Button>
+            <Button 
+              className="gap-2" 
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Basic Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Basic Information
+              </CardTitle>
+              <CardDescription>
+                Your student profile details (read-only)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="studentId">Student ID</Label>
+                  <Input 
+                    id="studentId" 
+                    value={studentData.student_id} 
+                    readOnly 
+                    className="bg-muted" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gradeSection">Grade & Section</Label>
+                  <Input 
+                    id="gradeSection" 
+                    value={`${studentData.grade} - ${studentData.section}`} 
+                    readOnly 
+                    className="bg-muted" 
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input 
+                  id="fullName" 
+                  value={studentData.student_name} 
+                  readOnly 
+                  className="bg-muted" 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="adviser">Class Adviser</Label>
+                <Input 
+                  id="adviser" 
+                  value={studentData.adviser || "Not assigned"} 
+                  readOnly 
+                  className="bg-muted" 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="studentType">Student Type</Label>
+                  <Input 
+                    id="studentType" 
+                    value={studentData.student_type || "Regular"} 
+                    readOnly 
+                    className="bg-muted" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Input 
+                    id="status" 
+                    value={studentData.status || "Active"} 
+                    readOnly 
+                    className="bg-muted" 
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Contact Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Phone className="h-5 w-5" />
+                Contact Information
+              </CardTitle>
+              <CardDescription>
+                Update your contact details
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address *</Label>
+                <Input 
+                  id="email" 
+                  type="email"
+                  placeholder="your.email@example.com" 
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your primary email address for school communications
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="contactNumber">Contact Number *</Label>
+                <Input 
+                  id="contactNumber" 
+                  placeholder="+63 912 345 6789" 
+                  value={formData.contact_number}
+                  onChange={(e) => handleInputChange('contact_number', e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Primary contact number for school communications
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Address Information */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Address Information
+              </CardTitle>
+              <CardDescription>
+                Update your current residential address
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="address">Complete Address *</Label>
+                <textarea
+                  id="address"
+                  placeholder="Enter your complete residential address including street, barangay, city, province, and ZIP code"
+                  value={formData.address}
+                  onChange={(e) => handleInputChange('address', e.target.value)}
+                  className="w-full min-h-[100px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Include street, barangay, city/municipality, province, and ZIP code
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* System Information */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                System Information
+              </CardTitle>
+              <CardDescription>
+                Account and system details
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="createdAt">Account Created</Label>
+                  <Input 
+                    id="createdAt" 
+                    value={studentData.created_at ? new Date(studentData.created_at).toLocaleString() : "Unknown"} 
+                    readOnly 
+                    className="bg-muted" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="updatedAt">Last Updated</Label>
+                  <Input 
+                    id="updatedAt" 
+                    value={studentData.updated_at ? new Date(studentData.updated_at).toLocaleString() : "Unknown"} 
+                    readOnly 
+                    className="bg-muted" 
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overall Attendance</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">85%</div>
-            <p className="text-xs text-muted-foreground">
-              +2% from last month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Days Present</CardTitle>
-            <User className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">45</div>
-            <p className="text-xs text-muted-foreground">
-              This semester
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Grade</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">Grade 1</div>
-            <p className="text-xs text-muted-foreground">
-              Section A
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reports</CardTitle>
-            <Download className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">3</div>
-            <p className="text-xs text-muted-foreground">
-              Available for download
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>
-              Access your most important features
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button asChild className="w-full justify-start gap-2">
-              <Link href="/student-attendance">
-                <Calendar className="h-4 w-4" />
-                View My Attendance
-              </Link>
-            </Button>
-            <Button asChild className="w-full justify-start gap-2">
-              <Link href="/secretary-attendance">
-                <Calendar className="h-4 w-4" />
-                Attendance
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>
-              Your latest attendance updates
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Today</span>
-              <span className="text-sm font-medium text-green-600">Present</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Yesterday</span>
-              <span className="text-sm font-medium text-green-600">Present</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Monday</span>
-              <span className="text-sm font-medium text-red-600">Absent</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </ProtectedRoute>
   )
 }
